@@ -21,9 +21,12 @@ import {
     PieChart,
     Pie,
     Cell,
-    ResponsiveContainer
+    ResponsiveContainer,
+    LineChart,
+    Line
 } from 'recharts';
 import axios from 'axios';
+import { format } from 'date-fns';
 
 const PantryAnalytics = () => {
     const theme = useTheme();
@@ -37,7 +40,8 @@ const PantryAnalytics = () => {
             delayedTasks: 0
         },
         mealTypeDistribution: [],
-        statusDistribution: []
+        statusDistribution: [],
+        deliveriesPerDay: []
     });
 
     useEffect(() => {
@@ -50,7 +54,16 @@ const PantryAnalytics = () => {
             const response = await axios.get('http://localhost:5000/api/pantry/analytics', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setAnalytics(response.data);
+
+            const formattedData = response.data.deliveriesPerDay.map(item => ({
+                date: format(new Date(item.date), 'MMM dd'),
+                count: item.count
+            }));
+
+            setAnalytics({
+                ...response.data,
+                deliveriesPerDay: formattedData
+            });
             setError(null);
         } catch (error) {
             console.error('Error fetching analytics:', error);
@@ -176,6 +189,31 @@ const PantryAnalytics = () => {
                                     <Legend />
                                     <Bar dataKey="value" fill="#8884d8" />
                                 </BarChart>
+                            </ResponsiveContainer>
+                        </Box>
+                    </Paper>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 2 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Deliveries Per Day
+                        </Typography>
+                        <Box sx={{ height: 300 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={analytics.deliveriesPerDay}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="date" />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="count" 
+                                        name="Deliveries"
+                                        stroke="#8884d8" 
+                                    />
+                                </LineChart>
                             </ResponsiveContainer>
                         </Box>
                     </Paper>
