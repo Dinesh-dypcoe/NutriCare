@@ -48,6 +48,10 @@ const App = () => {
                 <Layout>
                   <Routes>
                     <Route path="dashboard" element={<PantryDashboard />} />
+                    <Route path="preparation" element={<PantryDashboard />} />
+                    <Route path="deliveries" element={<PantryDashboard />} />
+                    <Route path="personnel" element={<PantryDashboard />} />
+                    <Route path="analytics" element={<PantryDashboard />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

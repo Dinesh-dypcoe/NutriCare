@@ -64,6 +64,34 @@ const Layout = ({ children }) => {
         ],
     };
 
+    const pantryMenuItems = [
+        { 
+            text: 'Dashboard', 
+            icon: <Dashboard />, 
+            path: '/pantry/dashboard' 
+        },
+        { 
+            text: 'Preparation Tasks', 
+            icon: <Restaurant />, 
+            path: '/pantry/preparation' 
+        },
+        { 
+            text: 'Delivery Assignments', 
+            icon: <LocalShipping />, 
+            path: '/pantry/deliveries' 
+        },
+        { 
+            text: 'Delivery Personnel', 
+            icon: <Person />, 
+            path: '/pantry/personnel' 
+        },
+        { 
+            text: 'Analytics', 
+            icon: <Assessment />, 
+            path: '/pantry/analytics' 
+        }
+    ];
+
     const DrawerContent = () => (
         <Box sx={{ width: 240, mt: 2 }}>
             <List>
