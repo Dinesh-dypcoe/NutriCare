@@ -1,6 +1,7 @@
 const Patient = require('../models/patient.model');
 const DietChart = require('../models/dietChart.model');
 const Delivery = require('../models/delivery.model');
+const User = require('../models/user.model');
 const mongoose = require('mongoose');
 
 const seedSampleData = async () => {
@@ -217,15 +218,19 @@ const seedSampleData = async () => {
         console.log('Created sample diet charts:', dietCharts.length);
 
         // Create sample deliveries for each diet chart
+        const deliveryPersonnel = await User.find({ role: 'delivery' });
+
         const deliveries = await Promise.all(dietCharts.flatMap(dietChart => {
             const mealTypes = ["breakfast", "lunch", "dinner"];
             return mealTypes.map(mealType => {
+                const randomDeliveryPerson = deliveryPersonnel[Math.floor(Math.random() * deliveryPersonnel.length)];
                 return Delivery.create({
                     patientId: dietChart.patientId,
                     dietChartId: dietChart._id,
                     mealType: mealType,
                     preparationStatus: ["pending", "preparing", "ready"][Math.floor(Math.random() * 3)],
-                    deliveryStatus: ["pending", "in-transit", "delivered"][Math.floor(Math.random() * 3)],
+                    deliveryStatus: ["pending", "assigned", "in-transit", "delivered"][Math.floor(Math.random() * 4)],
+                    assignedTo: randomDeliveryPerson._id,
                     scheduledTime: new Date(Date.now() + Math.floor(Math.random() * 24) * 60 * 60 * 1000)
                 });
             });
