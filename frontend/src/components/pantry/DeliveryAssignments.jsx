@@ -7,15 +7,14 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Button,
     Typography,
     Box,
     Chip,
-    IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
+    Button,
     FormControl,
     InputLabel,
     Select,
@@ -23,7 +22,6 @@ import {
     CircularProgress,
     Alert
 } from '@mui/material';
-import { Info as InfoIcon } from '@mui/icons-material';
 import axios from 'axios';
 
 const DeliveryAssignments = () => {
@@ -77,7 +75,6 @@ const DeliveryAssignments = () => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             setAssignDialogOpen(false);
-            setSelectedDelivery(null);
             setSelectedPersonnel('');
             fetchDeliveries();
         } catch (error) {
@@ -86,73 +83,22 @@ const DeliveryAssignments = () => {
         }
     };
 
-    const handleMarkDelivered = async (deliveryId) => {
-        try {
-            const token = localStorage.getItem('token');
-            await axios.put(
-                `http://localhost:5000/api/pantry/deliveries/${deliveryId}/delivered`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            fetchDeliveries();
-        } catch (error) {
-            console.error('Error marking delivery as delivered:', error);
-            setError('Failed to update delivery status');
-        }
-    };
-
     const getStatusColor = (status) => {
         switch (status) {
-            case 'pending':
-                return 'warning';
-            case 'assigned':
-                return 'info';
-            case 'in-transit':
-                return 'primary';
             case 'delivered':
                 return 'success';
+            case 'in-transit':
+                return 'warning';
             default:
                 return 'default';
         }
     };
 
-    const renderActionButtons = (delivery) => {
-        if (delivery.status === 'delivered') {
-            return (
-                <Chip
-                    label="Delivered"
-                    color="success"
-                    size="small"
-                />
-            );
-        }
-
-        return (
-            <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => {
-                        setSelectedDelivery(delivery);
-                        setAssignDialogOpen(true);
-                    }}
-                    disabled={delivery.assignedTo !== null}
-                >
-                    {delivery.assignedTo ? 'Assigned' : 'Assign'}
-                </Button>
-                {delivery.assignedTo && delivery.status !== 'delivered' && (
-                    <Button
-                        variant="contained"
-                        size="small"
-                        color="success"
-                        onClick={() => handleMarkDelivered(delivery._id)}
-                    >
-                        Mark Delivered
-                    </Button>
-                )}
-            </Box>
-        );
-    };
+    const sortedDeliveries = [...deliveries].sort((a, b) => {
+        if (!a.assignedTo && b.assignedTo) return -1;
+        if (a.assignedTo && !b.assignedTo) return 1;
+        return 0;
+    });
 
     if (loading) {
         return (
@@ -183,8 +129,13 @@ const DeliveryAssignments = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {deliveries.map((delivery) => (
-                            <TableRow key={delivery._id}>
+                        {sortedDeliveries.map((delivery) => (
+                            <TableRow 
+                                key={delivery._id}
+                                sx={{
+                                    bgcolor: !delivery.assignedTo ? 'action.hover' : 'inherit'
+                                }}
+                            >
                                 <TableCell>{delivery.patientName}</TableCell>
                                 <TableCell>{delivery.roomNumber}</TableCell>
                                 <TableCell>
@@ -201,7 +152,18 @@ const DeliveryAssignments = () => {
                                     {delivery.assignedTo ? delivery.assignedTo.name : 'Not Assigned'}
                                 </TableCell>
                                 <TableCell>
-                                    {renderActionButtons(delivery)}
+                                    {!delivery.assignedTo && (
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            onClick={() => {
+                                                setSelectedDelivery(delivery);
+                                                setAssignDialogOpen(true);
+                                            }}
+                                        >
+                                            Assign
+                                        </Button>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -209,10 +171,7 @@ const DeliveryAssignments = () => {
                 </Table>
             </TableContainer>
 
-            <Dialog
-                open={assignDialogOpen}
-                onClose={() => setAssignDialogOpen(false)}
-            >
+            <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
                 <DialogTitle>
                     Assign Delivery Personnel
                 </DialogTitle>

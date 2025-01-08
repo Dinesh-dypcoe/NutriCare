@@ -9,20 +9,20 @@ import {
     TableRow,
     Typography,
     Box,
-    Chip,
-    Button,
     IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
+    Button,
     CircularProgress,
-    Alert
+    Alert,
+    FormControl,
+    Select,
+    MenuItem
 } from '@mui/material';
 import {
-    CheckCircle as CheckCircleIcon,
-    Info as InfoIcon,
-    Timer as TimerIcon
+    Info as InfoIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -56,7 +56,8 @@ const PreparationTasks = () => {
     const handleStatusUpdate = async (taskId, newStatus) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`http://localhost:5000/api/pantry/preparation-tasks/${taskId}`, 
+            await axios.put(
+                `http://localhost:5000/api/pantry/preparation-tasks/${taskId}`, 
                 { preparationStatus: newStatus },
                 { headers: { Authorization: `Bearer ${token}` }}
             );
@@ -64,19 +65,6 @@ const PreparationTasks = () => {
         } catch (error) {
             console.error('Error updating task status:', error);
             setError('Failed to update task status');
-        }
-    };
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'pending':
-                return 'warning';
-            case 'preparing':
-                return 'info';
-            case 'ready':
-                return 'success';
-            default:
-                return 'default';
         }
     };
 
@@ -120,41 +108,28 @@ const PreparationTasks = () => {
                                     {new Date(task.scheduledTime).toLocaleTimeString()}
                                 </TableCell>
                                 <TableCell>
-                                    <Chip
-                                        label={task.preparationStatus}
-                                        color={getStatusColor(task.preparationStatus)}
-                                        size="small"
-                                    />
+                                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                                        <Select
+                                            value={task.preparationStatus}
+                                            onChange={(e) => handleStatusUpdate(task._id, e.target.value)}
+                                            size="small"
+                                        >
+                                            <MenuItem value="pending">Pending</MenuItem>
+                                            <MenuItem value="preparing">Preparing</MenuItem>
+                                            <MenuItem value="ready">Ready</MenuItem>
+                                        </Select>
+                                    </FormControl>
                                 </TableCell>
                                 <TableCell>
                                     <IconButton
+                                        size="small"
                                         onClick={() => {
                                             setSelectedTask(task);
                                             setDetailsModalOpen(true);
                                         }}
-                                        color="primary"
-                                        size="small"
                                     >
                                         <InfoIcon />
                                     </IconButton>
-                                    {task.preparationStatus === 'pending' && (
-                                        <IconButton
-                                            onClick={() => handleStatusUpdate(task._id, 'preparing')}
-                                            color="warning"
-                                            size="small"
-                                        >
-                                            <TimerIcon />
-                                        </IconButton>
-                                    )}
-                                    {task.preparationStatus === 'preparing' && (
-                                        <IconButton
-                                            onClick={() => handleStatusUpdate(task._id, 'ready')}
-                                            color="success"
-                                            size="small"
-                                        >
-                                            <CheckCircleIcon />
-                                        </IconButton>
-                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -204,19 +179,6 @@ const PreparationTasks = () => {
                                                 )}
                                             </Typography>
                                         ))}
-                                        {meal.specialInstructions.length > 0 && (
-                                            <Typography sx={{ mt: 1 }}>
-                                                Special Instructions:
-                                                {meal.specialInstructions.map((instruction, i) => (
-                                                    <Chip
-                                                        key={i}
-                                                        label={instruction}
-                                                        size="small"
-                                                        sx={{ ml: 1 }}
-                                                    />
-                                                ))}
-                                            </Typography>
-                                        )}
                                     </Box>
                                 ))}
                         </Box>
