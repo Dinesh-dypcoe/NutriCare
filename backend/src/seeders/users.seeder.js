@@ -19,10 +19,38 @@ const seedUsers = async () => {
                 role: 'pantry'
             },
             {
-                name: 'Delivery Personnel',
+                name: 'John Delivery',
                 email: 'hospital_delivery@xyz.com',
                 password: 'Password@2025',
                 contactNumber: '+1234567892',
+                role: 'delivery'
+            },
+            {
+                name: 'Sarah Delivery',
+                email: 'sarah.delivery@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567893',
+                role: 'delivery'
+            },
+            {
+                name: 'Mike Delivery',
+                email: 'mike.delivery@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567894',
+                role: 'delivery'
+            },
+            {
+                name: 'Emma Delivery',
+                email: 'emma.delivery@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567895',
+                role: 'delivery'
+            },
+            {
+                name: 'David Delivery',
+                email: 'david.delivery@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567896',
                 role: 'delivery'
             }
         ];

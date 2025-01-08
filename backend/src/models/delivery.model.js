@@ -16,19 +16,20 @@ const deliverySchema = new mongoose.Schema({
         enum: ['breakfast', 'lunch', 'dinner'],
         required: true
     },
-    assignedTo: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    },
     preparationStatus: {
         type: String,
-        enum: ['pending', 'preparing', 'ready', 'delivered'],
+        enum: ['pending', 'preparing', 'ready'],
         default: 'pending'
     },
     deliveryStatus: {
         type: String,
-        enum: ['pending', 'in-transit', 'delivered'],
+        enum: ['pending', 'assigned', 'in-transit', 'delivered'],
         default: 'pending'
+    },
+    assignedTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
     },
     deliveryTime: Date,
     deliveryNotes: String,
