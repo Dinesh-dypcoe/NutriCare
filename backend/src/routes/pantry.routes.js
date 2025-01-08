@@ -31,29 +31,14 @@ router.get('/dashboard-stats', auth, async (req, res) => {
 router.get('/preparation-tasks', auth, async (req, res) => {
     try {
         const tasks = await Delivery.find({
-            preparationStatus: { $ne: 'delivered' }
+            preparationStatus: { $in: ['pending', 'preparing'] },
+            scheduledTime: { $gte: new Date() }
         })
-        .populate('patientId', 'name roomNumber')
-        .populate('dietChartId', 'specialDietaryRequirements')
-        .populate({
-            path: 'dietChartId',
-            select: 'specialDietaryRequirements meals notes'
-        })
+        .populate('patientId', 'name roomNumber allergies')
+        .populate('dietChartId')
         .sort({ scheduledTime: 1 });
 
-        const formattedTasks = tasks.map(task => ({
-            _id: task._id,
-            patientName: task.patientId.name,
-            roomNumber: task.patientId.roomNumber,
-            mealType: task.mealType,
-            status: task.preparationStatus,
-            dietaryRequirements: task.dietChartId.specialDietaryRequirements,
-            scheduledTime: task.scheduledTime,
-            notes: task.notes,
-            mealDetails: task.dietChartId.meals.find(m => m.type === task.mealType)
-        }));
-
-        res.json(formattedTasks);
+        res.json(tasks);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -62,36 +47,37 @@ router.get('/preparation-tasks', auth, async (req, res) => {
 // Update preparation status
 router.put('/preparation-tasks/:id', auth, async (req, res) => {
     try {
-        const { status } = req.body;
-        const delivery = await Delivery.findByIdAndUpdate(
-            req.params.id,
-            { preparationStatus: status },
-            { new: true }
-        );
+        const { preparationStatus } = req.body;
+        const delivery = await Delivery.findById(req.params.id);
 
-        // Get updated analytics
-        const startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
-        
-        const todaysTasks = await Delivery.find({
-            createdAt: { $gte: startDate }
-        });
+        if (!delivery) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
 
-        const analyticsUpdate = {
-            totalTasks: todaysTasks.length,
-            completedTasks: todaysTasks.filter(task => task.preparationStatus === 'ready').length,
-            delayedTasks: todaysTasks.filter(task => task.isDelayed).length
-        };
+        // Update preparation times
+        if (preparationStatus === 'preparing' && !delivery.preparationStartTime) {
+            delivery.preparationStartTime = new Date();
+        }
+        if (preparationStatus === 'ready' && !delivery.preparationEndTime) {
+            delivery.preparationEndTime = new Date();
+        }
 
-        // Get WebSocket service and notify all pantry staff
+        delivery.preparationStatus = preparationStatus;
+        await delivery.save();
+
+        // Get the WebSocket service
         const wsService = req.app.get('wsService');
+        
+        // Notify relevant parties about the status change
         wsService.notifyPantryStaff({
-            type: 'analytics-update',
-            data: analyticsUpdate
+            type: 'preparation_status_update',
+            message: `Meal preparation status updated to ${preparationStatus}`,
+            delivery: delivery
         });
 
         res.json(delivery);
     } catch (error) {
+        console.error('Error updating preparation status:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -100,8 +86,7 @@ router.put('/preparation-tasks/:id', auth, async (req, res) => {
 router.get('/deliveries', auth, async (req, res) => {
     try {
         const deliveries = await Delivery.find({
-            preparationStatus: 'ready',
-            deliveryStatus: { $ne: 'delivered' }
+            preparationStatus: 'ready'
         })
         .populate('patientId', 'name roomNumber')
         .populate('assignedTo', 'name')
@@ -113,7 +98,8 @@ router.get('/deliveries', auth, async (req, res) => {
             roomNumber: delivery.patientId.roomNumber,
             mealType: delivery.mealType,
             status: delivery.deliveryStatus,
-            assignedTo: delivery.assignedTo
+            assignedTo: delivery.assignedTo,
+            deliveryTime: delivery.deliveryTime
         }));
 
         res.json(formattedDeliveries);
@@ -125,17 +111,34 @@ router.get('/deliveries', auth, async (req, res) => {
 // Assign delivery to personnel
 router.put('/deliveries/:id/assign', auth, async (req, res) => {
     try {
-        const { personnelId } = req.body;
-        const delivery = await Delivery.findByIdAndUpdate(
-            req.params.id,
-            { 
-                assignedTo: personnelId,
-                deliveryStatus: 'in-transit'
-            },
-            { new: true }
-        );
+        const { deliveryPersonId } = req.body;
+        const delivery = await Delivery.findById(req.params.id);
+
+        if (!delivery) {
+            return res.status(404).json({ message: 'Delivery not found' });
+        }
+
+        if (delivery.assignedTo) {
+            return res.status(400).json({ message: 'Delivery already assigned' });
+        }
+
+        delivery.assignedTo = deliveryPersonId;
+        delivery.deliveryStatus = 'assigned';
+        await delivery.save();
+
+        // Get the WebSocket service
+        const wsService = req.app.get('wsService');
+        
+        // Notify relevant parties
+        wsService.notifyPantryStaff({
+            type: 'delivery_assigned',
+            message: 'Delivery has been assigned',
+            delivery: delivery
+        });
+
         res.json(delivery);
     } catch (error) {
+        console.error('Error assigning delivery:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -212,70 +215,111 @@ router.delete('/delivery-personnel/:id', auth, async (req, res) => {
     }
 });
 
-// Add this route to your existing pantry.routes.js file
-
+// Add this route to get analytics data
 router.get('/analytics', auth, async (req, res) => {
     try {
-        const { timeRange } = req.query;
-        let startDate;
+        // Get today's start date
+        const startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
 
-        // Calculate start date based on time range
-        switch (timeRange) {
-            case 'week':
-                startDate = new Date();
-                startDate.setDate(startDate.getDate() - 7);
-                break;
-            case 'month':
-                startDate = new Date();
-                startDate.setMonth(startDate.getMonth() - 1);
-                break;
-            default: // today
-                startDate = new Date();
-                startDate.setHours(0, 0, 0, 0);
-        }
-
-        // Get all tasks within the time range
-        const tasks = await Delivery.find({
+        // Get all deliveries for today
+        const todaysDeliveries = await Delivery.find({
             createdAt: { $gte: startDate }
         });
 
-        // Calculate metrics
-        const totalTasks = tasks.length;
-        const completedTasks = tasks.filter(task => task.preparationStatus === 'ready').length;
+        // Calculate preparation metrics
+        const completedTasks = todaysDeliveries.filter(d => d.preparationStatus === 'ready').length;
         
-        // Calculate average preparation time
-        const completedTasksWithTime = tasks.filter(task => 
-            task.preparationStatus === 'ready' && task.completedAt
+        // Calculate delayed tasks
+        const delayedTasks = todaysDeliveries.filter(d => {
+            const scheduledTime = new Date(d.scheduledTime);
+            return scheduledTime < new Date() && d.preparationStatus !== 'ready';
+        }).length;
+
+        // Calculate average preparation time (in minutes) for completed tasks
+        const completedDeliveries = todaysDeliveries.filter(delivery => 
+            delivery.preparationStatus === 'ready' && 
+            delivery.updatedAt > delivery.createdAt
         );
-        const avgPrepTime = completedTasksWithTime.reduce((acc, task) => {
-            const prepTime = task.completedAt - task.createdAt;
-            return acc + prepTime;
-        }, 0) / (completedTasksWithTime.length || 1);
 
-        // Calculate distributions
-        const mealTypeDistribution = {
-            breakfast: tasks.filter(t => t.mealType === 'breakfast').length,
-            lunch: tasks.filter(t => t.mealType === 'lunch').length,
-            dinner: tasks.filter(t => t.mealType === 'dinner').length
-        };
+        let avgPrepTime = 0;
+        if (completedDeliveries.length > 0) {
+            const totalPrepTime = completedDeliveries.reduce((acc, delivery) => {
+                // Find the time between when preparation started (status changed to 'preparing')
+                // and when it was completed (status changed to 'ready')
+                const prepStartTime = new Date(delivery.createdAt);
+                const prepEndTime = new Date(delivery.updatedAt);
+                const timeDiff = prepEndTime - prepStartTime;
+                return acc + (timeDiff / (1000 * 60)); // Convert to minutes
+            }, 0);
+            
+            avgPrepTime = Math.round(totalPrepTime / completedDeliveries.length);
+        }
 
-        const statusDistribution = {
-            pending: tasks.filter(t => t.preparationStatus === 'pending').length,
-            preparing: tasks.filter(t => t.preparationStatus === 'preparing').length,
-            ready: tasks.filter(t => t.preparationStatus === 'ready').length
-        };
+        // Get meal type distribution
+        const mealTypes = await Delivery.aggregate([
+            { $match: { createdAt: { $gte: startDate } } },
+            { $group: { _id: '$mealType', count: { $sum: 1 } } }
+        ]);
+
+        // Get status distribution
+        const statusTypes = await Delivery.aggregate([
+            { $match: { createdAt: { $gte: startDate } } },
+            { $group: { _id: '$preparationStatus', count: { $sum: 1 } } }
+        ]);
 
         res.json({
             preparationMetrics: {
-                totalTasks,
+                totalTasks: todaysDeliveries.length,
                 completedTasks,
-                averagePreparationTime: Math.round(avgPrepTime / (1000 * 60)), // Convert to minutes
-                delayedTasks: tasks.filter(t => t.isDelayed).length
+                averagePreparationTime: avgPrepTime,
+                delayedTasks
             },
-            mealTypeDistribution,
-            statusDistribution
+            mealTypeDistribution: mealTypes.map(type => ({
+                name: type._id,
+                value: type.count
+            })),
+            statusDistribution: statusTypes.map(status => ({
+                name: status._id,
+                value: status.count
+            }))
         });
     } catch (error) {
+        console.error('Analytics error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Add this route to mark delivery as delivered
+router.put('/deliveries/:id/delivered', auth, async (req, res) => {
+    try {
+        const delivery = await Delivery.findById(req.params.id);
+
+        if (!delivery) {
+            return res.status(404).json({ message: 'Delivery not found' });
+        }
+
+        if (!delivery.assignedTo) {
+            return res.status(400).json({ message: 'Delivery must be assigned before marking as delivered' });
+        }
+
+        delivery.deliveryStatus = 'delivered';
+        delivery.deliveryTime = new Date();
+        await delivery.save();
+
+        // Get the WebSocket service
+        const wsService = req.app.get('wsService');
+        
+        // Notify relevant parties
+        wsService.notifyPantryStaff({
+            type: 'delivery_completed',
+            message: 'Delivery has been marked as delivered',
+            delivery: delivery
+        });
+
+        res.json(delivery);
+    } catch (error) {
+        console.error('Error marking delivery as delivered:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });

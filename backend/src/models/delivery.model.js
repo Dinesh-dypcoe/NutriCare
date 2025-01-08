@@ -31,7 +31,15 @@ const deliverySchema = new mongoose.Schema({
         ref: 'User',
         default: null
     },
-    deliveryTime: Date,
+    preparationStartTime: {
+        type: Date
+    },
+    preparationEndTime: {
+        type: Date
+    },
+    deliveryTime: {
+        type: Date
+    },
     deliveryNotes: String,
     scheduledTime: {
         type: Date,
@@ -39,6 +47,19 @@ const deliverySchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
+});
+
+// Middleware to track preparation time
+deliverySchema.pre('save', function(next) {
+    if (this.isModified('preparationStatus')) {
+        if (this.preparationStatus === 'preparing' && !this.preparationStartTime) {
+            this.preparationStartTime = new Date();
+        }
+        if (this.preparationStatus === 'ready' && !this.preparationEndTime) {
+            this.preparationEndTime = new Date();
+        }
+    }
+    next();
 });
 
 const Delivery = mongoose.model('Delivery', deliverySchema);

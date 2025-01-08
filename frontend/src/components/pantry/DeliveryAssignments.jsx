@@ -7,93 +7,38 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    Button,
+    Typography,
     Box,
     Chip,
-    FormControl,
-    Select,
-    MenuItem,
-    Button,
+    IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
-    Typography,
-    TextField,
-    Grid,
+    FormControl,
     InputLabel,
-    IconButton,
-    Tooltip
+    Select,
+    MenuItem,
+    CircularProgress,
+    Alert
 } from '@mui/material';
-import {
-    Search as SearchIcon,
-    FilterList as FilterIcon,
-    Clear as ClearIcon
-} from '@mui/icons-material';
+import { Info as InfoIcon } from '@mui/icons-material';
 import axios from 'axios';
 
 const DeliveryAssignments = () => {
     const [deliveries, setDeliveries] = useState([]);
-    const [filteredDeliveries, setFilteredDeliveries] = useState([]);
     const [deliveryPersonnel, setDeliveryPersonnel] = useState([]);
-    const [selectedDelivery, setSelectedDelivery] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-    const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filters, setFilters] = useState({
-        mealType: 'all',
-        status: 'all',
-        floor: 'all'
-    });
+    const [selectedDelivery, setSelectedDelivery] = useState(null);
+    const [selectedPersonnel, setSelectedPersonnel] = useState('');
 
     useEffect(() => {
         fetchDeliveries();
         fetchDeliveryPersonnel();
     }, []);
-
-    useEffect(() => {
-        applyFiltersAndSearch();
-    }, [deliveries, searchTerm, filters]);
-
-    const applyFiltersAndSearch = () => {
-        let filtered = [...deliveries];
-
-        // Apply search
-        if (searchTerm) {
-            filtered = filtered.filter(delivery => 
-                delivery.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                delivery.roomNumber.includes(searchTerm)
-            );
-        }
-
-        // Apply filters
-        if (filters.mealType !== 'all') {
-            filtered = filtered.filter(delivery => delivery.mealType === filters.mealType);
-        }
-        if (filters.status !== 'all') {
-            filtered = filtered.filter(delivery => delivery.status === filters.status);
-        }
-        if (filters.floor !== 'all') {
-            filtered = filtered.filter(delivery => delivery.roomNumber.startsWith(filters.floor));
-        }
-
-        setFilteredDeliveries(filtered);
-    };
-
-    const handleFilterChange = (field, value) => {
-        setFilters(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    const clearFilters = () => {
-        setFilters({
-            mealType: 'all',
-            status: 'all',
-            floor: 'all'
-        });
-        setSearchTerm('');
-    };
 
     const fetchDeliveries = async () => {
         try {
@@ -102,8 +47,12 @@ const DeliveryAssignments = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setDeliveries(response.data);
+            setError(null);
         } catch (error) {
             console.error('Error fetching deliveries:', error);
+            setError('Failed to load deliveries');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -119,17 +68,36 @@ const DeliveryAssignments = () => {
         }
     };
 
-    const assignDelivery = async (deliveryId, personnelId) => {
+    const handleAssign = async () => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`http://localhost:5000/api/pantry/deliveries/${deliveryId}/assign`, 
-                { personnelId },
-                { headers: { Authorization: `Bearer ${token}` }}
+            await axios.put(
+                `http://localhost:5000/api/pantry/deliveries/${selectedDelivery._id}/assign`,
+                { deliveryPersonId: selectedPersonnel },
+                { headers: { Authorization: `Bearer ${token}` } }
             );
-            fetchDeliveries();
             setAssignDialogOpen(false);
+            setSelectedDelivery(null);
+            setSelectedPersonnel('');
+            fetchDeliveries();
         } catch (error) {
             console.error('Error assigning delivery:', error);
+            setError('Failed to assign delivery');
+        }
+    };
+
+    const handleMarkDelivered = async (deliveryId) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(
+                `http://localhost:5000/api/pantry/deliveries/${deliveryId}/delivered`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            fetchDeliveries();
+        } catch (error) {
+            console.error('Error marking delivery as delivered:', error);
+            setError('Failed to update delivery status');
         }
     };
 
@@ -137,8 +105,10 @@ const DeliveryAssignments = () => {
         switch (status) {
             case 'pending':
                 return 'warning';
-            case 'in-transit':
+            case 'assigned':
                 return 'info';
+            case 'in-transit':
+                return 'primary';
             case 'delivered':
                 return 'success';
             default:
@@ -146,46 +116,59 @@ const DeliveryAssignments = () => {
         }
     };
 
+    const renderActionButtons = (delivery) => {
+        if (delivery.status === 'delivered') {
+            return (
+                <Chip
+                    label="Delivered"
+                    color="success"
+                    size="small"
+                />
+            );
+        }
+
+        return (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => {
+                        setSelectedDelivery(delivery);
+                        setAssignDialogOpen(true);
+                    }}
+                    disabled={delivery.assignedTo !== null}
+                >
+                    {delivery.assignedTo ? 'Assigned' : 'Assign'}
+                </Button>
+                {delivery.assignedTo && delivery.status !== 'delivered' && (
+                    <Button
+                        variant="contained"
+                        size="small"
+                        color="success"
+                        onClick={() => handleMarkDelivered(delivery._id)}
+                    >
+                        Mark Delivered
+                    </Button>
+                )}
+            </Box>
+        );
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <Box>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
-                    <TextField
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Search by patient name or room number..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        InputProps={{
-                            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-                            endAdornment: searchTerm && (
-                                <IconButton size="small" onClick={() => setSearchTerm('')}>
-                                    <ClearIcon />
-                                </IconButton>
-                            )
-                        }}
-                    />
-                </Grid>
-                <Grid item xs={12} md={6} sx={{ display: 'flex', gap: 2 }}>
-                    <Button
-                        variant="outlined"
-                        startIcon={<FilterIcon />}
-                        onClick={() => setFilterDialogOpen(true)}
-                    >
-                        Filters
-                    </Button>
-                    {(filters.mealType !== 'all' || filters.status !== 'all' || filters.floor !== 'all') && (
-                        <Button
-                            variant="outlined"
-                            color="error"
-                            startIcon={<ClearIcon />}
-                            onClick={clearFilters}
-                        >
-                            Clear Filters
-                        </Button>
-                    )}
-                </Grid>
-            </Grid>
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
 
             <TableContainer component={Paper}>
                 <Table>
@@ -200,11 +183,13 @@ const DeliveryAssignments = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredDeliveries.map((delivery) => (
+                        {deliveries.map((delivery) => (
                             <TableRow key={delivery._id}>
                                 <TableCell>{delivery.patientName}</TableCell>
                                 <TableCell>{delivery.roomNumber}</TableCell>
-                                <TableCell>{delivery.mealType}</TableCell>
+                                <TableCell>
+                                    {delivery.mealType.charAt(0).toUpperCase() + delivery.mealType.slice(1)}
+                                </TableCell>
                                 <TableCell>
                                     <Chip
                                         label={delivery.status}
@@ -216,43 +201,28 @@ const DeliveryAssignments = () => {
                                     {delivery.assignedTo ? delivery.assignedTo.name : 'Not Assigned'}
                                 </TableCell>
                                 <TableCell>
-                                    <Button
-                                        variant="contained"
-                                        size="small"
-                                        onClick={() => {
-                                            setSelectedDelivery(delivery);
-                                            setAssignDialogOpen(true);
-                                        }}
-                                        disabled={delivery.status === 'delivered'}
-                                    >
-                                        Assign
-                                    </Button>
+                                    {renderActionButtons(delivery)}
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {filteredDeliveries.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center">
-                                    <Typography color="text.secondary">
-                                        No deliveries found
-                                    </Typography>
-                                </TableCell>
-                            </TableRow>
-                        )}
                     </TableBody>
                 </Table>
             </TableContainer>
 
-            <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
-                <DialogTitle>Assign Delivery Personnel</DialogTitle>
+            <Dialog
+                open={assignDialogOpen}
+                onClose={() => setAssignDialogOpen(false)}
+            >
+                <DialogTitle>
+                    Assign Delivery Personnel
+                </DialogTitle>
                 <DialogContent>
-                    <Typography variant="body2" gutterBottom>
-                        Select delivery personnel to assign this task:
-                    </Typography>
                     <FormControl fullWidth sx={{ mt: 2 }}>
+                        <InputLabel>Select Personnel</InputLabel>
                         <Select
-                            value={selectedDelivery?.assignedTo?._id || ''}
-                            onChange={(e) => assignDelivery(selectedDelivery._id, e.target.value)}
+                            value={selectedPersonnel}
+                            onChange={(e) => setSelectedPersonnel(e.target.value)}
+                            label="Select Personnel"
                         >
                             {deliveryPersonnel.map((person) => (
                                 <MenuItem key={person._id} value={person._id}>
@@ -263,66 +233,15 @@ const DeliveryAssignments = () => {
                     </FormControl>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog open={filterDialogOpen} onClose={() => setFilterDialogOpen(false)}>
-                <DialogTitle>Filter Deliveries</DialogTitle>
-                <DialogContent>
-                    <Grid container spacing={2} sx={{ mt: 1 }}>
-                        <Grid item xs={12}>
-                            <FormControl fullWidth>
-                                <InputLabel>Meal Type</InputLabel>
-                                <Select
-                                    value={filters.mealType}
-                                    onChange={(e) => handleFilterChange('mealType', e.target.value)}
-                                    label="Meal Type"
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="breakfast">Breakfast</MenuItem>
-                                    <MenuItem value="lunch">Lunch</MenuItem>
-                                    <MenuItem value="dinner">Dinner</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12}>
-                            <FormControl fullWidth>
-                                <InputLabel>Status</InputLabel>
-                                <Select
-                                    value={filters.status}
-                                    onChange={(e) => handleFilterChange('status', e.target.value)}
-                                    label="Status"
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="pending">Pending</MenuItem>
-                                    <MenuItem value="in-transit">In Transit</MenuItem>
-                                    <MenuItem value="delivered">Delivered</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12}>
-                            <FormControl fullWidth>
-                                <InputLabel>Floor</InputLabel>
-                                <Select
-                                    value={filters.floor}
-                                    onChange={(e) => handleFilterChange('floor', e.target.value)}
-                                    label="Floor"
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="1">1st Floor</MenuItem>
-                                    <MenuItem value="2">2nd Floor</MenuItem>
-                                    <MenuItem value="3">3rd Floor</MenuItem>
-                                    <MenuItem value="4">4th Floor</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                    </Grid>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setFilterDialogOpen(false)}>Close</Button>
-                    <Button onClick={clearFilters} color="error">
-                        Clear All
+                    <Button onClick={() => setAssignDialogOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleAssign}
+                        variant="contained"
+                        disabled={!selectedPersonnel}
+                    >
+                        Assign
                     </Button>
                 </DialogActions>
             </Dialog>
