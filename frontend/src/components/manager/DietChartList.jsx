@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Paper,
     Table,
@@ -14,36 +14,41 @@ import {
     TextField,
     Chip,
     CircularProgress,
-    Alert
+    Alert,
+    InputAdornment
 } from '@mui/material';
 import { Edit, Delete, Add, Visibility, Search as SearchIcon } from '@mui/icons-material';
-import { Link } from 'react-router-dom';
-import { dietChartAPI } from '../../services/api';
+import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const DietChartList = () => {
     const [dietCharts, setDietCharts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-
-    useEffect(() => {
-        fetchDietCharts();
-    }, []);
+    const navigate = useNavigate();
 
     const fetchDietCharts = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const response = await dietChartAPI.getAll();
-            console.log('Fetched diet charts:', response.data); // Debug log
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://localhost:5000/api/manager/diet-charts', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            console.log('Fetched diet charts:', response.data);
             setDietCharts(response.data);
             setError(null);
         } catch (error) {
             console.error('Error fetching diet charts:', error);
-            setError('Failed to load diet charts. Please try again later.');
+            setError('Failed to load diet charts');
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchDietCharts();
+    }, []);
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this diet chart?')) {
@@ -70,10 +75,25 @@ const DietChartList = () => {
         }
     };
 
+    // Filter diet charts based on patient name
+    const filteredDietCharts = dietCharts.filter(chart =>
+        chart.patientId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                 <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Box>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
             </Box>
         );
     }
@@ -93,12 +113,6 @@ const DietChartList = () => {
                     Create New Diet Chart
                 </Button>
             </Box>
-
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
 
             <TextField
                 fullWidth
@@ -124,8 +138,8 @@ const DietChartList = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {dietCharts.length > 0 ? (
-                            dietCharts.map((chart) => (
+                        {filteredDietCharts.length > 0 ? (
+                            filteredDietCharts.map((chart) => (
                                 <TableRow key={chart._id}>
                                     <TableCell>{chart.patientId?.name || 'N/A'}</TableCell>
                                     <TableCell>
