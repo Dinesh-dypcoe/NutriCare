@@ -22,6 +22,7 @@ import {
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import VerminVibesFont from '../../assets/VerminVibesV-Zlg3.ttf';
 
 const Login = () => {
     const theme = useTheme();
@@ -88,8 +89,8 @@ const Login = () => {
                                         mb: 2
                                     }}
                                 />
-                                <Typography variant="h4" component="h1" gutterBottom>
-                                    Welcome Back
+                                <Typography variant="h4" component="h1" gutterBottom fontFamily={'VerminVibes'} color={theme.palette.primary.main}>
+                                    Welcome to Nutricare
                                 </Typography>
                                 <Typography variant="body1" color="text.secondary">
                                     Sign in to continue
