@@ -19,7 +19,9 @@ import {
     Alert,
     FormControl,
     Select,
-    MenuItem
+    MenuItem,
+    TextField,
+    InputLabel
 } from '@mui/material';
 import {
     Info as InfoIcon
@@ -32,9 +34,26 @@ const PreparationTasks = () => {
     const [error, setError] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
 
     useEffect(() => {
         fetchTasks();
+    }, []);
+
+    useEffect(() => {
+        const ws = new WebSocket('ws://localhost:5000');
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'task_update') {
+                fetchTasks(); // Refresh tasks when update received
+            }
+        };
+
+        return () => {
+            ws.close();
+        };
     }, []);
 
     const fetchTasks = async () => {
@@ -68,6 +87,12 @@ const PreparationTasks = () => {
         }
     };
 
+    const filteredTasks = tasks.filter(task => {
+        const matchesSearch = task.patientId.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === 'all' || task.preparationStatus === filterStatus;
+        return matchesSearch && matchesStatus;
+    });
+
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -84,6 +109,29 @@ const PreparationTasks = () => {
                 </Alert>
             )}
 
+            <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+                <TextField
+                    size="small"
+                    label="Search Patient"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    sx={{ width: 300 }}
+                />
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Filter Status</InputLabel>
+                    <Select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        label="Filter Status"
+                    >
+                        <MenuItem value="all">All Status</MenuItem>
+                        <MenuItem value="pending">Pending</MenuItem>
+                        <MenuItem value="preparing">Preparing</MenuItem>
+        
+                    </Select>
+                </FormControl>
+            </Box>
+
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
@@ -97,7 +145,7 @@ const PreparationTasks = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {tasks.map((task) => (
+                        {filteredTasks.map((task) => (
                             <TableRow key={task._id}>
                                 <TableCell>{task.patientId.name}</TableCell>
                                 <TableCell>{task.patientId.roomNumber}</TableCell>

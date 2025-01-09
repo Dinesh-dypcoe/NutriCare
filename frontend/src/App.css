@@ -40,3 +40,16 @@
 .read-the-docs {
   color: #888;
 }
+
+@font-face {
+    font-family: 'VerminVibes';
+    src: url('./assets/VerminVibesV-Zlg3.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Add a test class to verify the font is loading */
+.vermin-font {
+    font-family: 'VerminVibes', sans-serif !important;
+}

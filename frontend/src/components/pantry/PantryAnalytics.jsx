@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Paper,
     Grid,
@@ -8,7 +8,8 @@ import {
     CardContent,
     CircularProgress,
     Alert,
-    useTheme
+    useTheme,
+    Button
 } from '@mui/material';
 import {
     BarChart,
@@ -27,6 +28,7 @@ import {
 } from 'recharts';
 import axios from 'axios';
 import { format } from 'date-fns';
+import DownloadIcon from '@mui/icons-material/Download';
 
 const PantryAnalytics = () => {
     const theme = useTheme();
@@ -75,6 +77,27 @@ const PantryAnalytics = () => {
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
+    const exportToCSV = () => {
+        const csvData = [
+            ['Date', 'Total Tasks', 'Completed', 'Pending', 'Preparing'],
+            ...analytics.deliveriesPerDay.map(day => [
+                day.date,
+                analytics.preparationMetrics.totalTasks,
+                analytics.preparationMetrics.completedTasks,
+                analytics.preparationMetrics.pendingTasks,
+                analytics.preparationMetrics.preparingTasks
+            ])
+        ];
+
+        const csvContent = csvData.map(row => row.join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'pantry-analytics.csv';
+        a.click();
+    };
+
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -93,13 +116,23 @@ const PantryAnalytics = () => {
 
     return (
         <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                <Button
+                    variant="contained"
+                    startIcon={<DownloadIcon />}
+                    onClick={exportToCSV}
+                >
+                    Export Report
+                </Button>
+            </Box>
+
             <Grid container spacing={3}>
-                {/* Metrics Cards */}
+                {/* Total Tasks Card */}
                 <Grid item xs={12} md={3}>
                     <Card>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
-                                Total Tasks
+                                Total Tasks Today
                             </Typography>
                             <Typography variant="h4">
                                 {analytics.preparationMetrics.totalTasks}
@@ -107,38 +140,44 @@ const PantryAnalytics = () => {
                         </CardContent>
                     </Card>
                 </Grid>
+
+                {/* Pending Tasks Card */}
                 <Grid item xs={12} md={3}>
                     <Card>
                         <CardContent>
-                            <Typography variant="h6" gutterBottom>
+                            <Typography variant="h6" gutterBottom color="warning.main">
+                                Pending Tasks
+                            </Typography>
+                            <Typography variant="h4" color="warning.main">
+                                {analytics.preparationMetrics.pendingTasks}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* Preparing Tasks Card */}
+                <Grid item xs={12} md={3}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" gutterBottom color="info.main">
+                                Preparing
+                            </Typography>
+                            <Typography variant="h4" color="info.main">
+                                {analytics.preparationMetrics.preparingTasks}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* Completed Tasks Card */}
+                <Grid item xs={12} md={3}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" gutterBottom color="success.main">
                                 Completed Tasks
                             </Typography>
-                            <Typography variant="h4">
+                            <Typography variant="h4" color="success.main">
                                 {analytics.preparationMetrics.completedTasks}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} md={3}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                Average Prep Time
-                            </Typography>
-                            <Typography variant="h4">
-                                {analytics.preparationMetrics.averagePreparationTime} min
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} md={3}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                Delayed Tasks
-                            </Typography>
-                            <Typography variant="h4" color="error">
-                                {analytics.preparationMetrics.delayedTasks}
                             </Typography>
                         </CardContent>
                     </Card>
@@ -218,6 +257,7 @@ const PantryAnalytics = () => {
                         </Box>
                     </Paper>
                 </Grid>
+
             </Grid>
         </Box>
     );

@@ -10,7 +10,9 @@ import {
     Tab,
     Badge,
     IconButton,
-    useTheme
+    useTheme,
+    Alert,
+    Button
 } from '@mui/material';
 import {
     Restaurant as RestaurantIcon,
@@ -35,6 +37,7 @@ const PantryDashboard = () => {
         activeDeliveries: 0,
         totalDeliveryPersonnel: 0
     });
+    const [delayedTasks, setDelayedTasks] = useState([]);
 
     useEffect(() => {
         fetchDashboardStats();
@@ -76,6 +79,15 @@ const PantryDashboard = () => {
             default:
                 navigate('/pantry/dashboard');
         }
+    };
+
+    const checkDelayedTasks = () => {
+        const currentTime = new Date();
+        const delayed = tasks.filter(task => {
+            const scheduledTime = new Date(task.scheduledTime);
+            return scheduledTime < currentTime && task.preparationStatus !== 'ready';
+        });
+        setDelayedTasks(delayed);
     };
 
     return (
@@ -155,6 +167,20 @@ const PantryDashboard = () => {
             {activeTab === 1 && <DeliveryAssignments />}
             {activeTab === 2 && <DeliveryPersonnel />}
             {activeTab === 3 && <PantryAnalytics />}
+
+            {delayedTasks.length > 0 && (
+                <Alert 
+                    severity="warning" 
+                    sx={{ mb: 2 }}
+                    action={
+                        <Button color="inherit" size="small">
+                            View All
+                        </Button>
+                    }
+                >
+                    {delayedTasks.length} tasks are delayed!
+                </Alert>
+            )}
         </Box>
     );
 };
