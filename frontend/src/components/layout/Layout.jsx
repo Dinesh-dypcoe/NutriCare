@@ -30,6 +30,16 @@ import {
     ExpandMore
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
+import VerminVibesFont from '../../assets/VerminVibesV-Zlg3.ttf';
+
+const styles = {
+    '@font-face': {
+        fontFamily: 'VerminVibes',
+        src: `url(${VerminVibesFont}) format('truetype')`,
+        fontWeight: 'normal',
+        fontStyle: 'normal',
+    }
+};
 
 const Layout = ({ children }) => {
     const theme = useTheme();
@@ -164,8 +174,29 @@ const Layout = ({ children }) => {
                     >
                         {menuOpen ? <ExpandLess /> : <ExpandMore />}
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                        Hospital Food Management System
+                    <Typography 
+                        variant="h6" 
+                        noWrap 
+                        component={motion.div}
+                        sx={{ 
+                            flexGrow: 1,
+                            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                            backgroundClip: 'text',
+                            WebkitBackgroundClip: 'text',
+                            color: 'transparent',
+                            fontWeight: 700,
+                            letterSpacing: '0.05em',
+                            textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
+                            fontSize: { xs: '1.5rem', md: '1.8rem' },
+                            fontFamily: 'VerminVibes, sans-serif !important',
+                            display: 'inline-block',
+                            ...styles
+                        }}
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        NutriCare
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>

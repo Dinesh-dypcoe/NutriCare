@@ -20,7 +20,9 @@ import {
     DialogActions,
     TextField,
     Tabs,
-    Tab
+    Tab,
+    CircularProgress,
+    Alert
 } from '@mui/material';
 import axios from 'axios';
 import DeliveryHistory from './DeliveryHistory';
@@ -36,6 +38,8 @@ const DeliveryDashboard = () => {
         totalDelivered: 0
     });
     const [activeTab, setActiveTab] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         fetchDeliveries();
@@ -45,12 +49,16 @@ const DeliveryDashboard = () => {
     const fetchDeliveries = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/delivery/assigned-deliveries', {
+            const response = await axios.get('http://localhost:5000/api/delivery/my-deliveries', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setDeliveries(response.data);
+            setError(null);
         } catch (error) {
             console.error('Error fetching deliveries:', error);
+            setError('Failed to load deliveries');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -100,8 +108,28 @@ const DeliveryDashboard = () => {
         setActiveTab(newValue);
     };
 
+    const getActiveDeliveries = () => {
+        return deliveries.filter(delivery => 
+            delivery.status === 'pending' || delivery.status === 'in-transit'
+        );
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <Box>
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
+
             <Typography variant="h4" gutterBottom>
                 Delivery Dashboard
             </Typography>
@@ -157,24 +185,27 @@ const DeliveryDashboard = () => {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>Patient</TableCell>
-                                <TableCell>Room</TableCell>
+                                <TableCell>Patient Name</TableCell>
+                                <TableCell>Room Number</TableCell>
                                 <TableCell>Meal Type</TableCell>
+                                <TableCell>Scheduled Time</TableCell>
                                 <TableCell>Status</TableCell>
                                 <TableCell>Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {deliveries.map((delivery) => (
+                            {getActiveDeliveries().map((delivery) => (
                                 <TableRow key={delivery._id}>
                                     <TableCell>{delivery.patientName}</TableCell>
                                     <TableCell>{delivery.roomNumber}</TableCell>
                                     <TableCell>{delivery.mealType}</TableCell>
                                     <TableCell>
-                                        <Chip
+                                        {new Date(delivery.scheduledTime).toLocaleTimeString()}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Chip 
                                             label={delivery.status}
-                                            color={getStatusColor(delivery.status)}
-                                            size="small"
+                                            color={delivery.status === 'pending' ? 'warning' : 'info'}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -182,7 +213,6 @@ const DeliveryDashboard = () => {
                                             variant="contained"
                                             color="success"
                                             size="small"
-                                            disabled={delivery.status === 'delivered'}
                                             onClick={() => {
                                                 setSelectedDelivery(delivery);
                                                 setDialogOpen(true);

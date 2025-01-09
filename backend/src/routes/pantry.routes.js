@@ -203,29 +203,27 @@ router.delete('/delivery-personnel/:id', auth, async (req, res) => {
 // Add this route to get analytics data
 router.get('/analytics', auth, async (req, res) => {
     try {
-        // Get today's start date
+        // Get today's start and end date
         const startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
 
-        // Get today's deliveries
-        const todaysDeliveries = await Delivery.find({
-            createdAt: { $gte: startDate }
+        // Get today's tasks with better status filtering
+        const todaysTasks = await Delivery.find({
+            scheduledTime: { 
+                $gte: startDate,
+                $lte: endDate
+            }
         });
 
-        // Calculate preparation metrics
-        const completedTasks = todaysDeliveries.filter(d => d.preparationStatus === 'ready').length;
-
-        // Get meal type distribution
-        const mealTypes = await Delivery.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            { $group: { _id: '$mealType', count: { $sum: 1 } } }
-        ]);
-
-        // Get status distribution
-        const statusTypes = await Delivery.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            { $group: { _id: '$preparationStatus', count: { $sum: 1 } } }
-        ]);
+        // Calculate metrics more accurately
+        const preparationMetrics = {
+            totalTasks: todaysTasks.length,  // All tasks scheduled for today
+            pendingTasks: todaysTasks.filter(d => d.preparationStatus === 'pending').length,
+            preparingTasks: todaysTasks.filter(d => d.preparationStatus === 'preparing').length,
+            completedTasks: todaysTasks.filter(d => d.preparationStatus === 'ready').length
+        };
 
         // Get last 7 days dates
         const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -235,12 +233,13 @@ router.get('/analytics', auth, async (req, res) => {
             return date;
         });
 
-        // Get deliveries for last 7 days
+        // Get deliveries for last 7 days with proper date range query
         const deliveryData = await Delivery.aggregate([
             {
                 $match: {
-                    createdAt: { 
-                        $gte: last7Days[6] // 7 days ago
+                    scheduledTime: { 
+                        $gte: last7Days[6], // 7 days ago
+                        $lte: endDate
                     }
                 }
             },
@@ -249,10 +248,15 @@ router.get('/analytics', auth, async (req, res) => {
                     _id: {
                         $dateToString: { 
                             format: "%Y-%m-%d", 
-                            date: "$createdAt" 
+                            date: "$scheduledTime" 
                         }
                     },
                     count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: {
+                    "_id": 1
                 }
             }
         ]);
@@ -263,16 +267,51 @@ router.get('/analytics', auth, async (req, res) => {
         );
 
         // Format the data for all 7 days, including zeros for days with no deliveries
-        const deliveriesPerDay = last7Days.map(date => ({
-            date: date.toISOString().split('T')[0],
-            count: deliveryMap.get(date.toISOString().split('T')[0]) || 0
-        })).reverse(); // Reverse to show oldest to newest
+        const deliveriesPerDay = last7Days.map(date => {
+            const dateStr = date.toISOString().split('T')[0];
+            return {
+                date: dateStr,
+                count: deliveryMap.get(dateStr) || 0
+            };
+        }).reverse(); // Reverse to show oldest to newest
+
+        // Get meal type and status distributions
+        const mealTypes = await Delivery.aggregate([
+            {
+                $match: {
+                    scheduledTime: { 
+                        $gte: startDate,
+                        $lte: endDate
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: '$mealType',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const statusTypes = await Delivery.aggregate([
+            {
+                $match: {
+                    scheduledTime: { 
+                        $gte: startDate,
+                        $lte: endDate
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: '$preparationStatus',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
 
         res.json({
-            preparationMetrics: {
-                totalTasks: todaysDeliveries.length,
-                completedTasks
-            },
+            preparationMetrics,
             mealTypeDistribution: mealTypes.map(type => ({
                 name: type._id,
                 value: type.count

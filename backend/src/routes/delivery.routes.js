@@ -155,4 +155,36 @@ router.put('/start-delivery/:id', auth, async (req, res) => {
     }
 });
 
+// Get deliveries for logged-in delivery personnel
+router.get('/my-deliveries', auth, async (req, res) => {
+    try {
+        // Get deliveries assigned to the logged-in user
+        const deliveries = await Delivery.find({
+            assignedTo: req.userData.userId,  // Changed from req.user.userId to req.userData.userId
+            deliveryStatus: { $in: ['pending', 'in-transit'] }
+        })
+        .populate('patientId', 'name roomNumber')
+        .populate('dietChartId')
+        .sort({ scheduledTime: 1 });
+
+        const formattedDeliveries = deliveries.map(delivery => ({
+            _id: delivery._id,
+            patientName: delivery.patientId.name,
+            roomNumber: delivery.patientId.roomNumber,
+            mealType: delivery.mealType,
+            status: delivery.deliveryStatus,
+            scheduledTime: delivery.scheduledTime,
+            dietDetails: delivery.dietChartId ? {
+                restrictions: delivery.dietChartId.restrictions,
+                instructions: delivery.dietChartId.instructions
+            } : null
+        }));
+
+        res.json(formattedDeliveries);
+    } catch (error) {
+        console.error('Error fetching deliveries:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 module.exports = router; 
