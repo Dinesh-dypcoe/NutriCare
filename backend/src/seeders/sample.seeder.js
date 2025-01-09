@@ -153,66 +153,81 @@ const seedSampleData = async () => {
 
         // Create sample diet charts for each patient
         const dietCharts = await Promise.all(patients.map(async (patient) => {
-            return DietChart.create({
+            const dietChart = new DietChart({
                 patientId: patient._id,
-                meals: [
-                    {
-                        type: "breakfast",
-                        items: [
-                            {
-                                name: patient.diseases.includes("Diabetes Type 2") ? "Sugar-free Oatmeal" : "Regular Oatmeal",
-                                quantity: "1 bowl",
-                                instructions: patient.diseases.includes("Diabetes Type 2") ? "No sugar added" : "Normal preparation"
-                            },
-                            {
-                                name: "Fresh Fruits",
-                                quantity: "1 cup",
-                                instructions: "Seasonal mixed fruits"
-                            }
-                        ],
-                        specialInstructions: patient.allergies,
-                        timing: "08:00"
-                    },
-                    {
-                        type: "lunch",
-                        items: [
-                            {
-                                name: "Grilled Chicken",
-                                quantity: "200g",
-                                instructions: patient.diseases.includes("Hypertension") ? "Low sodium" : "Normal seasoning"
-                            },
-                            {
-                                name: "Steamed Vegetables",
-                                quantity: "1 cup",
-                                instructions: "Mixed vegetables"
-                            }
-                        ],
-                        specialInstructions: patient.allergies,
-                        timing: "13:00"
-                    },
-                    {
-                        type: "dinner",
-                        items: [
-                            {
-                                name: "Soup",
-                                quantity: "1 bowl",
-                                instructions: "Clear soup"
-                            },
-                            {
-                                name: "Whole Grain Bread",
-                                quantity: "2 slices",
-                                instructions: patient.allergies.includes("Gluten") ? "Gluten-free bread" : "Regular bread"
-                            }
-                        ],
-                        specialInstructions: patient.allergies,
-                        timing: "19:00"
-                    }
-                ],
                 startDate: new Date(),
                 endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                specialDietaryRequirements: patient.allergies,
-                status: "active"
+                specialDietaryRequirements: ['Low sodium', 'No nuts'],
+                status: 'active',
+                
+                // Add the required calorie fields
+                breakfastCalories: 450,
+                lunchCalories: 650,
+                dinnerCalories: 550,
+
+                // Add meal items
+                breakfastItems: [
+                    'Oatmeal with honey',
+                    'Fresh fruit bowl',
+                    'Whole grain toast',
+                    'Boiled eggs',
+                    'Orange juice'
+                ],
+                breakfastPortionSize: 'Standard',
+                breakfastNotes: 'Serve oatmeal warm, fruit should be fresh and seasonal',
+
+                lunchItems: [
+                    'Grilled chicken breast',
+                    'Brown rice',
+                    'Steamed vegetables',
+                    'Garden salad',
+                    'Low-fat yogurt'
+                ],
+                lunchPortionSize: 'Large',
+                lunchNotes: 'Chicken should be well-cooked, no raw vegetables',
+
+                dinnerItems: [
+                    'Baked fish',
+                    'Quinoa',
+                    'Roasted vegetables',
+                    'Soup',
+                    'Fresh fruit'
+                ],
+                dinnerPortionSize: 'Medium',
+                dinnerNotes: 'Fish should be fresh, avoid spicy seasonings',
+
+                meals: [
+                    {
+                        type: 'breakfast',
+                        items: [
+                            { name: 'Oatmeal', quantity: '1 bowl', instructions: 'Serve warm' },
+                            { name: 'Toast', quantity: '2 slices', instructions: 'Lightly toasted' }
+                        ],
+                        specialInstructions: ['No sugar'],
+                        timing: '8:00 AM'
+                    },
+                    {
+                        type: 'lunch',
+                        items: [
+                            { name: 'Chicken', quantity: '200g', instructions: 'Grilled' },
+                            { name: 'Rice', quantity: '1 cup', instructions: 'Steamed' }
+                        ],
+                        specialInstructions: ['Low salt'],
+                        timing: '12:30 PM'
+                    },
+                    {
+                        type: 'dinner',
+                        items: [
+                            { name: 'Fish', quantity: '180g', instructions: 'Baked' },
+                            { name: 'Vegetables', quantity: '1 cup', instructions: 'Steamed' }
+                        ],
+                        specialInstructions: ['No spicy seasoning'],
+                        timing: '7:00 PM'
+                    }
+                ]
             });
+
+            return dietChart.save();
         }));
 
         console.log('Created sample diet charts:', dietCharts.length);
