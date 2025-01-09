@@ -14,6 +14,8 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import { theme } from './theme';
 import PatientForm from './components/manager/PatientForm';
 import DietChartView from './components/manager/DietChartView';
+import PantryStaffList from './components/manager/PantryStaffList';
+import PantryManagement from './components/manager/PantryManagement';
 
 const App = () => {
   return (
@@ -37,6 +39,7 @@ const App = () => {
                     <Route path="diet-charts/new" element={<DietChartForm />} />
                     <Route path="diet-charts/edit/:id" element={<DietChartForm />} />
                     <Route path="diet-charts/view/:id" element={<DietChartView />} />
+                    <Route path="pantry-management" element={<PantryManagement />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

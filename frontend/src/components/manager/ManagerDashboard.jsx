@@ -122,7 +122,7 @@ const ManagerDashboard = () => {
                 </Grid>
             </Grid>
 
-            <Grid container spacing={3}>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, height: '100%' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>

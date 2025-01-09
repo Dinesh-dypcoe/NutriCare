@@ -35,7 +35,42 @@ const dietChartSchema = new mongoose.Schema({
         type: String,
         enum: ['active', 'completed', 'cancelled'],
         default: 'active'
-    }
+    },
+    // Breakfast details
+    breakfastItems: {
+        type: [String],
+        default: []
+    },
+    breakfastCalories: {
+        type: Number,
+        required: true
+    },
+    breakfastPortionSize: String,
+    breakfastNotes: String,
+
+    // Lunch details
+    lunchItems: {
+        type: [String],
+        default: []
+    },
+    lunchCalories: {
+        type: Number,
+        required: true
+    },
+    lunchPortionSize: String,
+    lunchNotes: String,
+
+    // Dinner details
+    dinnerItems: {
+        type: [String],
+        default: []
+    },
+    dinnerCalories: {
+        type: Number,
+        required: true
+    },
+    dinnerPortionSize: String,
+    dinnerNotes: String
 }, {
     timestamps: true
 });

@@ -11,46 +11,67 @@ const seedUsers = async () => {
                 contactNumber: '+1234567890',
                 role: 'manager'
             },
+            // Pantry Staff Members
             {
-                name: 'Pantry Staff',
+                name: 'John Pantry',
                 email: 'hospital_pantry@xyz.com',
                 password: 'Password@2025',
                 contactNumber: '+1234567891',
-                role: 'pantry'
+                role: 'pantry',
+                location: 'Main Kitchen'
             },
+            {
+                name: 'Sarah Kitchen',
+                email: 'sarah.pantry@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567892',
+                role: 'pantry',
+                location: 'Floor 2 Kitchen'
+            },
+            {
+                name: 'Mike Cook',
+                email: 'mike.pantry@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567893',
+                role: 'pantry',
+                location: 'Special Diet Kitchen'
+            },
+            {
+                name: 'Emily Food',
+                email: 'emily.pantry@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567894',
+                role: 'pantry',
+                location: 'Prep Kitchen'
+            },
+            {
+                name: 'David Chef',
+                email: 'david.pantry@xyz.com',
+                password: 'Password@2025',
+                contactNumber: '+1234567895',
+                role: 'pantry',
+                location: 'Main Kitchen'
+            },
+            // Delivery Staff Members
             {
                 name: 'John Delivery',
                 email: 'hospital_delivery@xyz.com',
                 password: 'Password@2025',
-                contactNumber: '+1234567892',
+                contactNumber: '+1234567896',
                 role: 'delivery'
             },
             {
                 name: 'Sarah Delivery',
                 email: 'sarah.delivery@xyz.com',
                 password: 'Password@2025',
-                contactNumber: '+1234567893',
+                contactNumber: '+1234567897',
                 role: 'delivery'
             },
             {
                 name: 'Mike Delivery',
                 email: 'mike.delivery@xyz.com',
                 password: 'Password@2025',
-                contactNumber: '+1234567894',
-                role: 'delivery'
-            },
-            {
-                name: 'Emma Delivery',
-                email: 'emma.delivery@xyz.com',
-                password: 'Password@2025',
-                contactNumber: '+1234567895',
-                role: 'delivery'
-            },
-            {
-                name: 'David Delivery',
-                email: 'david.delivery@xyz.com',
-                password: 'Password@2025',
-                contactNumber: '+1234567896',
+                contactNumber: '+1234567898',
                 role: 'delivery'
             }
         ];

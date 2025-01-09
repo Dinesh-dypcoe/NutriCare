@@ -27,7 +27,8 @@ import {
     Person,
     ExitToApp,
     ExpandLess,
-    ExpandMore
+    ExpandMore,
+    Group
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import VerminVibesFont from '../../assets/VerminVibesV-Zlg3.ttf';
@@ -61,6 +62,7 @@ const Layout = ({ children }) => {
             { text: 'Dashboard', icon: <Dashboard />, path: '/manager/dashboard' },
             { text: 'Patients', icon: <Person />, path: '/manager/patients' },
             { text: 'Diet Charts', icon: <Restaurant />, path: '/manager/diet-charts' },
+            { text: 'Pantry Management', icon: <Group />, path: '/manager/pantry-management' },
         ],
         pantry: [
             { text: 'Dashboard', icon: <Dashboard />, path: '/pantry/dashboard' },

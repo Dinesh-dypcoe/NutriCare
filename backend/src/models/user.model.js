@@ -24,7 +24,17 @@ const userSchema = new mongoose.Schema({
     contactNumber: {
         type: String,
         required: true
-    }
+    },
+    currentTasks: [{
+        taskId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Delivery'
+        },
+        type: {
+            type: String,
+            enum: ['preparation', 'delivery']
+        }
+    }]
 }, {
     timestamps: true
 });
