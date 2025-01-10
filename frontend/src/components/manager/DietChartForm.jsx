@@ -13,7 +13,8 @@ import {
     InputLabel,
     Select,
     CircularProgress,
-    Alert
+    Alert,
+    Autocomplete
 } from '@mui/material';
 import { Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -52,6 +53,8 @@ const DietChartForm = () => {
         specialDietaryRequirements: [''],
         status: 'active'
     });
+    const [patientSearchInput, setPatientSearchInput] = useState('');
+    const [patientLoading, setPatientLoading] = useState(false);
 
     useEffect(() => {
         fetchPatients();
@@ -179,28 +182,71 @@ const DietChartForm = () => {
 
     return (
         <Paper sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
+            <Typography variant="h6" sx={{ mb: 3 }}>
                 {id ? 'Edit Diet Chart' : 'Create New Diet Chart'}
             </Typography>
             <Divider sx={{ mb: 3 }} />
 
             <form onSubmit={handleSubmit}>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                        <FormControl fullWidth required>
-                            <InputLabel>Patient</InputLabel>
-                            <Select
-                                value={formData.patientId}
-                                onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
-                                label="Patient"
-                            >
-                                {patients.map((patient) => (
-                                    <MenuItem key={patient._id} value={patient._id}>
-                                        {patient.name} - Room {patient.roomNumber}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                    <Grid item xs={12}>
+                        <Autocomplete
+                            value={patients.find(p => p._id === formData.patientId) || null}
+                            onChange={(event, newValue) => {
+                                setFormData(prev => ({
+                                    ...prev,
+                                    patientId: newValue?._id || ''
+                                }));
+                            }}
+                            inputValue={patientSearchInput}
+                            onInputChange={(event, newInputValue) => {
+                                setPatientSearchInput(newInputValue);
+                            }}
+                            options={patients}
+                            getOptionLabel={(option) => 
+                                `${option.name} (Room: ${option.roomNumber})`
+                            }
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Select Patient"
+                                    required
+                                    error={Boolean(error && !formData.patientId)}
+                                    helperText={error && !formData.patientId ? "Patient is required" : ""}
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        endAdornment: (
+                                            <>
+                                                {patientLoading ? (
+                                                    <CircularProgress color="inherit" size={20} />
+                                                ) : null}
+                                                {params.InputProps.endAdornment}
+                                            </>
+                                        ),
+                                    }}
+                                />
+                            )}
+                            renderOption={(props, option) => (
+                                <li {...props}>
+                                    <Box>
+                                        <Typography variant="body1">
+                                            {option.name}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Room: {option.roomNumber} | Age: {option.age} | Gender: {option.gender}
+                                        </Typography>
+                                    </Box>
+                                </li>
+                            )}
+                            loading={patientLoading}
+                            filterOptions={(options, { inputValue }) => {
+                                const searchTerm = inputValue.toLowerCase();
+                                return options.filter(option => 
+                                    option.name.toLowerCase().includes(searchTerm) ||
+                                    option.roomNumber.toLowerCase().includes(searchTerm)
+                                );
+                            }}
+                        />
                     </Grid>
 
                     <Grid item xs={12} md={3}>
