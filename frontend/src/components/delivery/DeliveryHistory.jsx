@@ -9,40 +9,64 @@ import {
     TableRow,
     Typography,
     Box,
-    TextField,
-    Grid
+    CircularProgress,
+    Alert
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import axios from 'axios';
+import api from '../../services/api';
 
 const DeliveryHistory = () => {
-    const [deliveries, setDeliveries] = useState([]);
-    const [startDate, setStartDate] = useState(null);
-    const [endDate, setEndDate] = useState(null);
+    const [state, setState] = useState({
+        history: [],
+        loading: true,
+        error: null
+    });
 
-    useEffect(() => {
-        fetchDeliveryHistory();
-    }, [startDate, endDate]);
-
-    const fetchDeliveryHistory = async () => {
+    const fetchHistory = async () => {
         try {
-            const token = localStorage.getItem('token');
-            let url = 'http://localhost:5000/api/delivery/history';
+            setState(prev => ({ ...prev, loading: true, error: null }));
             
-            if (startDate && endDate) {
-                url += `?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
-            }
+            // Fetch delivery history
+            const response = await api.get('/delivery/history');
+            console.log('Delivery History:', response.data);
 
-            const response = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setDeliveries(response.data);
+            setState(prev => ({
+                ...prev,
+                history: response.data || [],
+                loading: false
+            }));
         } catch (error) {
-            console.error('Error fetching delivery history:', error);
+            console.error('Error fetching history:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
+            setState(prev => ({
+                ...prev,
+                loading: false,
+                error: 'Failed to load delivery history'
+            }));
         }
     };
+
+    useEffect(() => {
+        fetchHistory();
+    }, []);
+
+    if (state.loading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (state.error) {
+        return (
+            <Alert severity="error" sx={{ mb: 2 }}>
+                {state.error}
+            </Alert>
+        );
+    }
 
     return (
         <Box>
@@ -50,52 +74,31 @@ const DeliveryHistory = () => {
                 Delivery History
             </Typography>
 
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid item xs={12} md={6}>
-                        <DatePicker
-                            label="Start Date"
-                            value={startDate}
-                            onChange={(newValue) => setStartDate(newValue)}
-                            renderInput={(params) => <TextField {...params} fullWidth />}
-                        />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                        <DatePicker
-                            label="End Date"
-                            value={endDate}
-                            onChange={(newValue) => setEndDate(newValue)}
-                            renderInput={(params) => <TextField {...params} fullWidth />}
-                            minDate={startDate}
-                        />
-                    </Grid>
-                </Grid>
-            </LocalizationProvider>
-
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Patient</TableCell>
-                            <TableCell>Room</TableCell>
+                            <TableCell>Patient Name</TableCell>
+                            <TableCell>Room Number</TableCell>
                             <TableCell>Meal Type</TableCell>
                             <TableCell>Delivery Time</TableCell>
                             <TableCell>Notes</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {deliveries.map((delivery) => (
-                            <TableRow key={delivery._id}>
-                                <TableCell>{delivery.patientName}</TableCell>
-                                <TableCell>{delivery.roomNumber}</TableCell>
-                                <TableCell>{delivery.mealType}</TableCell>
-                                <TableCell>
-                                    {new Date(delivery.deliveryTime).toLocaleString()}
-                                </TableCell>
-                                <TableCell>{delivery.notes || '-'}</TableCell>
-                            </TableRow>
-                        ))}
-                        {deliveries.length === 0 && (
+                        {state.history.length > 0 ? (
+                            state.history.map((delivery) => (
+                                <TableRow key={delivery._id}>
+                                    <TableCell>{delivery.patientName}</TableCell>
+                                    <TableCell>{delivery.roomNumber}</TableCell>
+                                    <TableCell>{delivery.mealType}</TableCell>
+                                    <TableCell>
+                                        {new Date(delivery.deliveryTime).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell>{delivery.notes || '-'}</TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
                             <TableRow>
                                 <TableCell colSpan={5} align="center">
                                     No delivery history found
