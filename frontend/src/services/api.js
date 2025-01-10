@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
-
 const api = axios.create({
-    baseURL: API_URL
+    baseURL: import.meta.env.VITE_API_URL
 });
 
 // Request interceptor for adding auth token
@@ -45,19 +43,7 @@ export const dietChartAPI = {
     getById: (id) => api.get(`/manager/diet-charts/${id}`),
     create: (data) => api.post('/manager/diet-charts', data),
     update: (id, data) => api.put(`/manager/diet-charts/${id}`, data),
-    delete: async (id) => {
-        try {
-            const response = await axios.delete(`${API_URL}/manager/diet-charts/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
-                }
-            });
-            return response;
-        } catch (error) {
-            console.error('API Error - Delete Diet Chart:', error);
-            throw error;
-        }
-    }
+    delete: (id) => api.delete(`/manager/diet-charts/${id}`)
 };
 
 export default api; 
