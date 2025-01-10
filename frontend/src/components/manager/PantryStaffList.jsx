@@ -250,7 +250,7 @@ const PantryStaffList = () => {
                             <TableCell>Email</TableCell>
                             <TableCell>Contact Number</TableCell>
                             <TableCell>Location</TableCell>
-                            <TableCell>Tasks</TableCell>
+                            <TableCell>Current Task</TableCell>
                             <TableCell>Actions</TableCell>
                         </TableRow>
                     </TableHead>
@@ -269,23 +269,16 @@ const PantryStaffList = () => {
                                     <TableCell>{staff.contactNumber}</TableCell>
                                     <TableCell>{staff.location}</TableCell>
                                     <TableCell>
-                                        {staff.currentTasks?.map((task, index) => (
-                                            <Chip
-                                                key={index}
-                                                label={task.type}
-                                                color={task.type === 'preparation' ? 'primary' : 'secondary'}
-                                                size="small"
-                                                sx={{ mr: 1 }}
+                                        {staff.currentTask ? (
+                                            <Chip 
+                                                label={staff.currentTask.charAt(0).toUpperCase() + staff.currentTask.slice(1)}
+                                                color={staff.currentTask === 'cooking' ? 'primary' : 'secondary'}
                                             />
-                                        ))}
+                                        ) : (
+                                            'Available'
+                                        )}
                                     </TableCell>
                                     <TableCell>
-                                        <IconButton
-                                            color="primary"
-                                            onClick={(e) => handleAssignClick(staff)}
-                                        >
-                                            <Assignment />
-                                        </IconButton>
                                         <IconButton
                                             color="primary"
                                             onClick={() => handleOpenDialog(staff)}
