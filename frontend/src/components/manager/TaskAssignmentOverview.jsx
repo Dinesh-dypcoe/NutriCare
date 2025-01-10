@@ -25,7 +25,7 @@ import {
     IconButton
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../services/api';
 
 const TaskAssignmentOverview = () => {
     const [assignments, setAssignments] = useState([]);
@@ -58,10 +58,10 @@ const TaskAssignmentOverview = () => {
 
     const fetchAssignments = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/task-assignments', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            setLoading(true);
+            console.log('Fetching task assignments...'); // Debug log
+            const response = await api.get('/manager/task-assignments');
+            console.log('Assignments response:', response.data); // Debug log
             setAssignments(response.data);
         } catch (error) {
             console.error('Error fetching assignments:', error);
@@ -73,10 +73,7 @@ const TaskAssignmentOverview = () => {
 
     const fetchPantryStaff = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/staff', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/manager/staff');
             setPantryStaff(response.data);
         } catch (error) {
             console.error('Error fetching staff:', error);
@@ -85,10 +82,7 @@ const TaskAssignmentOverview = () => {
 
     const fetchPatients = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/patients', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/manager/patients');
             setPatients(response.data);
         } catch (error) {
             console.error('Error fetching patients:', error);
@@ -97,10 +91,7 @@ const TaskAssignmentOverview = () => {
 
     const fetchDietCharts = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/diet-charts', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/manager/diet-charts');
             setDietCharts(response.data.filter(chart => chart.status === 'active'));
         } catch (error) {
             console.error('Error fetching diet charts:', error);
@@ -109,7 +100,6 @@ const TaskAssignmentOverview = () => {
 
     const handleAssignTask = async () => {
         try {
-            const token = localStorage.getItem('token');
             const taskData = {
                 staffId: formData.staffId,
                 patientId: formData.patientId,
@@ -121,21 +111,9 @@ const TaskAssignmentOverview = () => {
             };
 
             if (editingAssignment) {
-                await axios.put(
-                    `http://localhost:5000/api/manager/task-assignments/${editingAssignment._id}`,
-                    taskData,
-                    {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }
-                );
+                await api.put(`/manager/task-assignments/${editingAssignment._id}`, taskData);
             } else {
-                await axios.post(
-                    'http://localhost:5000/api/manager/assign-task',
-                    taskData,
-                    {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }
-                );
+                await api.post('/manager/assign-task', taskData);
             }
 
             await fetchAssignments();
@@ -156,13 +134,7 @@ const TaskAssignmentOverview = () => {
 
         if (field === 'patientId' && value && formData.taskType === 'preparation') {
             try {
-                const token = localStorage.getItem('token');
-                const response = await axios.get(
-                    `http://localhost:5000/api/manager/patients/${value}/active-diet-chart`,
-                    {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }
-                );
+                const response = await api.get(`/manager/patients/${value}/active-diet-chart`);
                 setActiveDietChart(response.data);
                 setFormData(prev => ({
                     ...prev,
@@ -189,13 +161,7 @@ const TaskAssignmentOverview = () => {
         try {
             // If it's a preparation task, fetch the active diet chart
             if (assignment.taskType === 'preparation') {
-                const token = localStorage.getItem('token');
-                const response = await axios.get(
-                    `http://localhost:5000/api/manager/patients/${assignment.patientId._id}/active-diet-chart`,
-                    {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }
-                );
+                const response = await api.get(`/manager/patients/${assignment.patientId._id}/active-diet-chart`);
                 setActiveDietChart(response.data);
             }
 
@@ -224,13 +190,7 @@ const TaskAssignmentOverview = () => {
 
     const handleDeleteConfirm = async () => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.delete(
-                `http://localhost:5000/api/manager/task-assignments/${selectedAssignment._id}`,
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
+            await api.delete(`/manager/task-assignments/${selectedAssignment._id}`);
             fetchAssignments();
             setDeleteDialogOpen(false);
             setSelectedAssignment(null);
