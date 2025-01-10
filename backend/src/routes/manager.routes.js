@@ -97,11 +97,14 @@ router.delete('/patients/:id', auth, async (req, res) => {
 // Get all diet charts
 router.get('/diet-charts', auth, async (req, res) => {
     try {
+        console.log('Fetching diet charts...'); // Debug log
         const dietCharts = await DietChart.find()
-            .populate('patientId', 'name roomNumber')
+            .populate('patientId')
             .sort({ createdAt: -1 });
+        console.log('Found diet charts:', dietCharts.length); // Debug log
         res.json(dietCharts);
     } catch (error) {
+        console.error('Error in /diet-charts:', error); // Debug log
         res.status(500).json({ message: 'Server error' });
     }
 });

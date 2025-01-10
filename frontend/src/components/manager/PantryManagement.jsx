@@ -21,6 +21,26 @@ const PantryManagement = () => {
         setActiveTab(newValue);
     };
 
+    const fetchStaff = async () => {
+        try {
+            setLoading(true);
+            console.log('Fetching staff...'); // Debug log
+            const response = await api.get('/manager/staff');
+            console.log('Staff response:', response.data); // Debug log
+            setStaff(response.data);
+            setError(null);
+        } catch (error) {
+            console.error('Error fetching staff:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
+            setError('Failed to load staff members');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <Box>
             <Typography variant="h5" gutterBottom>

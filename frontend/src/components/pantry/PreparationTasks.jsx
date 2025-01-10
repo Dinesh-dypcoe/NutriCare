@@ -58,11 +58,18 @@ const PreparationTasks = () => {
 
     const fetchTasks = async () => {
         try {
+            setLoading(true);
+            console.log('Fetching preparation tasks...'); // Debug log
             const response = await api.get('/pantry/preparation-tasks');
+            console.log('Tasks response:', response.data); // Debug log
             setTasks(response.data);
             setError(null);
         } catch (error) {
-            console.error('Error fetching preparation tasks:', error);
+            console.error('Error fetching tasks:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
             setError('Failed to load preparation tasks');
         } finally {
             setLoading(false);
