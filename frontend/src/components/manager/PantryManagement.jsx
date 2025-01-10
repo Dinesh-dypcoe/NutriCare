@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
     Tabs,
     Tab,
     Typography,
-    Divider
+    CircularProgress,
+    Alert
 } from '@mui/material';
 import {
     People as PeopleIcon,
@@ -13,13 +14,17 @@ import {
 } from '@mui/icons-material';
 import PantryStaffList from './PantryStaffList';
 import TaskAssignmentOverview from './TaskAssignmentOverview';
+import api from '../../services/api';
 
 const PantryManagement = () => {
     const [activeTab, setActiveTab] = useState(0);
+    const [staff, setStaff] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    const handleTabChange = (event, newValue) => {
-        setActiveTab(newValue);
-    };
+    useEffect(() => {
+        fetchStaff();
+    }, []);
 
     const fetchStaff = async () => {
         try {
@@ -40,6 +45,26 @@ const PantryManagement = () => {
             setLoading(false);
         }
     };
+
+    const handleTabChange = (event, newValue) => {
+        setActiveTab(newValue);
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+            </Alert>
+        );
+    }
 
     return (
         <Box>
@@ -67,8 +92,8 @@ const PantryManagement = () => {
             </Paper>
 
             <Box sx={{ mt: 2 }}>
-                {activeTab === 0 && <PantryStaffList />}
-                {activeTab === 1 && <TaskAssignmentOverview />}
+                {activeTab === 0 && <PantryStaffList staff={staff} onStaffUpdate={fetchStaff} />}
+                {activeTab === 1 && <TaskAssignmentOverview staff={staff} />}
             </Box>
         </Box>
     );
