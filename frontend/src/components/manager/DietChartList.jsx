@@ -42,10 +42,21 @@ const DietChartList = () => {
 
     const fetchDietCharts = async () => {
         try {
+            setLoading(true);
+            console.log('Fetching diet charts...'); // Debug log
             const response = await api.get('/manager/diet-charts');
+            console.log('Diet charts response:', response.data); // Debug log
             setDietCharts(response.data);
+            setError(null);
         } catch (error) {
-            console.error('Error fetching diet charts:', error);
+            console.error('Error fetching diet charts:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
+            setError('Failed to load diet charts');
+        } finally {
+            setLoading(false);
         }
     };
 

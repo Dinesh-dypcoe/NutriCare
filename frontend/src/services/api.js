@@ -15,21 +15,35 @@ api.interceptors.request.use((config) => {
 
 // Add request logging
 api.interceptors.request.use(request => {
-    console.log('Starting Request:', request.url);
+    console.log('API Request:', {
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        data: request.data
+    });
     return request;
+}, error => {
+    console.error('Request Error:', error);
+    return Promise.reject(error);
 });
 
 // Response interceptor for handling errors
 api.interceptors.response.use(
-    (response) => {
-        console.log('Response:', response.config.url, response.status);
+    response => {
+        console.log('API Response:', {
+            url: response.config.url,
+            status: response.status,
+            data: response.data
+        });
         return response;
     },
-    (error) => {
+    error => {
         console.error('API Error:', {
             url: error.config?.url,
+            method: error.config?.method,
             status: error.response?.status,
-            data: error.response?.data
+            data: error.response?.data,
+            message: error.message
         });
         if (error.response?.status === 401) {
             localStorage.removeItem('token');
