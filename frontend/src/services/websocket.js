@@ -2,10 +2,11 @@ class WebSocketService {
     constructor() {
         this.ws = null;
         this.listeners = new Map();
+        this.wsUrl = import.meta.env.VITE_API_URL.replace('http', 'ws').replace('/api', '');
     }
 
     connect() {
-        this.ws = new WebSocket('ws://localhost:5000');
+        this.ws = new WebSocket(this.wsUrl);
 
         this.ws.onopen = () => {
             console.log('WebSocket connected');
