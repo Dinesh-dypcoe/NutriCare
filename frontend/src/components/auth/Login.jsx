@@ -34,7 +34,7 @@ const Login = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', credentials);
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/login`, credentials);
             if (response.data && response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('userRole', response.data.user.role);
