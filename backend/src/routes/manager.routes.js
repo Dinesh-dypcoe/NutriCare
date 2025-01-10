@@ -395,29 +395,37 @@ router.post('/assign-task', auth, async (req, res) => {
 // Get all task assignments
 router.get('/task-assignments', auth, async (req, res) => {
     try {
-        const assignments = await Delivery.find({
-            assignedTo: { $ne: null },
-            $or: [
-                { preparationStatus: { $in: ['preparing', 'ready'] } },
-                { deliveryStatus: { $in: ['assigned', 'in-transit'] } }
-            ]
-        })
-        .populate('assignedTo', 'name')
-        .populate('patientId', 'name roomNumber')
-        .sort({ createdAt: -1 });
+        // Get all tasks with their assignments
+        const assignments = await Delivery.find()
+            .populate({
+                path: 'assignedTo',
+                select: 'name role'
+            })
+            .populate('patientId', 'name roomNumber')
+            .sort({ createdAt: -1 });
 
-        const formattedAssignments = assignments.map(assignment => ({
-            _id: assignment._id,
-            assignedTo: assignment.assignedTo,
-            patientId: assignment.patientId,
-            mealType: assignment.mealType,
-            scheduledTime: assignment.scheduledTime,
-            preparationStatus: assignment.preparationStatus,
-            deliveryStatus: assignment.deliveryStatus,
-            taskType: assignment.preparationStatus !== 'ready' ? 'preparation' : 'delivery',
-            assignedAt: assignment.createdAt
-        }));
+        console.log('Found assignments:', assignments); // Debug log
 
+        const formattedAssignments = assignments
+            .filter(assignment => assignment.assignedTo) // Only include assignments with staff assigned
+            .map(assignment => ({
+                _id: assignment._id,
+                assignedTo: {
+                    _id: assignment.assignedTo._id,
+                    name: assignment.assignedTo.name,
+                    role: assignment.assignedTo.role
+                },
+                patientId: assignment.patientId,
+                mealType: assignment.mealType,
+                scheduledTime: assignment.scheduledTime,
+                preparationStatus: assignment.preparationStatus,
+                deliveryStatus: assignment.deliveryStatus,
+                taskType: assignment.preparationStatus === 'pending' || 
+                         assignment.preparationStatus === 'preparing' ? 'preparation' : 'delivery',
+                assignedAt: assignment.createdAt
+            }));
+
+        console.log('Formatted assignments:', formattedAssignments); // Debug log
         res.json(formattedAssignments);
     } catch (error) {
         console.error('Error fetching task assignments:', error);
@@ -560,6 +568,42 @@ router.get('/analytics', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Analytics error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Update task assignment
+router.put('/task-assignments/:id', auth, async (req, res) => {
+    try {
+        const task = await Delivery.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true }
+        )
+        .populate('assignedTo', 'name role')
+        .populate('patientId', 'name roomNumber');
+
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+
+        res.json(task);
+    } catch (error) {
+        console.error('Error updating task:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Delete task assignment
+router.delete('/task-assignments/:id', auth, async (req, res) => {
+    try {
+        const task = await Delivery.findByIdAndDelete(req.params.id);
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+        res.json({ message: 'Task deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting task:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });

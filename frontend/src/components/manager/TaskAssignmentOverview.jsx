@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import {
     Paper,
     Typography,
-    Box,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Box,
     Chip,
     CircularProgress,
     Alert,
@@ -22,47 +22,54 @@ import {
     Select,
     MenuItem,
     TextField,
-    Snackbar,
-    Alert as MuiAlert
+    IconButton
 } from '@mui/material';
-import { Assignment } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import axios from 'axios';
 
 const TaskAssignmentOverview = () => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-    const [selectedDelivery, setSelectedDelivery] = useState(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
     const [pantryStaff, setPantryStaff] = useState([]);
-    const [selectedStaff, setSelectedStaff] = useState('');
-    const [taskType, setTaskType] = useState('preparation');
     const [patients, setPatients] = useState([]);
-    const [activeDietChart, setActiveDietChart] = useState(null);
     const [formData, setFormData] = useState({
-        taskType: 'preparation',
         staffId: '',
         patientId: '',
         dietChartId: '',
+        taskType: '',
         mealType: '',
-        scheduledTime: new Date().toISOString().slice(0, 16) // Format: YYYY-MM-DDTHH:mm
+        scheduledTime: '',
+        specialInstructions: ''
     });
-    const [successMessage, setSuccessMessage] = useState('');
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [dietCharts, setDietCharts] = useState([]);
+    const [activeDietChart, setActiveDietChart] = useState(null);
+    const [editingAssignment, setEditingAssignment] = useState(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [selectedAssignment, setSelectedAssignment] = useState(null);
 
     useEffect(() => {
         fetchAssignments();
         fetchPantryStaff();
         fetchPatients();
-        const interval = setInterval(fetchAssignments, 30000);
-        return () => clearInterval(interval);
+        fetchDietCharts();
     }, []);
 
-    useEffect(() => {
-        if (formData.patientId) {
-            fetchActiveDietChart(formData.patientId);
+    const fetchAssignments = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://localhost:5000/api/manager/task-assignments', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAssignments(response.data);
+        } catch (error) {
+            console.error('Error fetching assignments:', error);
+            setError('Failed to load task assignments');
+        } finally {
+            setLoading(false);
         }
-    }, [formData.patientId]);
+    };
 
     const fetchPantryStaff = async () => {
         try {
@@ -73,22 +80,6 @@ const TaskAssignmentOverview = () => {
             setPantryStaff(response.data);
         } catch (error) {
             console.error('Error fetching pantry staff:', error);
-        }
-    };
-
-    const fetchAssignments = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/task-assignments', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setAssignments(response.data);
-            setError(null);
-        } catch (error) {
-            console.error('Error fetching assignments:', error);
-            setError('Failed to load task assignments');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -104,93 +95,236 @@ const TaskAssignmentOverview = () => {
         }
     };
 
-    const fetchActiveDietChart = async (patientId) => {
-        if (!patientId) return;
+    const fetchDietCharts = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(
-                `http://localhost:5000/api/manager/patients/${patientId}/active-diet-chart`,
-                { headers: { Authorization: `Bearer ${token}` }}
-            );
-            setActiveDietChart(response.data);
-            setFormData(prev => ({
-                ...prev,
-                dietChartId: response.data._id
-            }));
+            const response = await axios.get('http://localhost:5000/api/manager/diet-charts', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setDietCharts(response.data.filter(chart => chart.status === 'active'));
         } catch (error) {
-            console.error('Error fetching active diet chart:', error);
-            setError('No active diet chart found for this patient');
-            setSnackbarOpen(true);
+            console.error('Error fetching diet charts:', error);
         }
     };
 
     const handleAssignTask = async () => {
         try {
             const token = localStorage.getItem('token');
-            await axios.post(
-                'http://localhost:5000/api/manager/assign-task',
-                formData,
-                { headers: { Authorization: `Bearer ${token}` }}
+            if (editingAssignment) {
+                await axios.put(
+                    `http://localhost:5000/api/manager/task-assignments/${editingAssignment._id}`,
+                    formData,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+            } else {
+                await axios.post(
+                    'http://localhost:5000/api/manager/assign-task',
+                    formData,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+            }
+
+            fetchAssignments();
+            setDialogOpen(false);
+            setEditingAssignment(null);
+            setFormData({
+                staffId: '',
+                patientId: '',
+                dietChartId: '',
+                taskType: '',
+                mealType: '',
+                scheduledTime: '',
+                specialInstructions: ''
+            });
+        } catch (error) {
+            console.error('Error saving task:', error);
+            setError('Failed to save task');
+        }
+    };
+
+    const handleInputChange = (field) => async (event) => {
+        const value = event.target.value;
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+
+        if (field === 'patientId' && value && formData.taskType === 'preparation') {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(
+                    `http://localhost:5000/api/manager/patients/${value}/active-diet-chart`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                setActiveDietChart(response.data);
+                setFormData(prev => ({
+                    ...prev,
+                    patientId: value,
+                    dietChartId: response.data._id,
+                    mealType: prev.mealType || response.data.meals[0]?.type || ''
+                }));
+            } catch (error) {
+                console.error('Error fetching active diet chart:', error);
+                setError('No active diet chart found for this patient');
+                setActiveDietChart(null);
+                setFormData(prev => ({
+                    ...prev,
+                    patientId: value,
+                    dietChartId: ''
+                }));
+            }
+        }
+    };
+
+    const handleEditClick = async (assignment) => {
+        setEditingAssignment(assignment);
+        
+        try {
+            // If it's a preparation task, fetch the active diet chart
+            if (assignment.taskType === 'preparation') {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(
+                    `http://localhost:5000/api/manager/patients/${assignment.patientId._id}/active-diet-chart`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                setActiveDietChart(response.data);
+            }
+
+            // Set form data
+            setFormData({
+                staffId: assignment.assignedTo._id,
+                patientId: assignment.patientId._id,
+                dietChartId: assignment.dietChartId,
+                taskType: assignment.taskType,
+                mealType: assignment.mealType,
+                scheduledTime: new Date(assignment.scheduledTime).toISOString().slice(0, 16),
+                specialInstructions: assignment.specialInstructions || ''
+            });
+            
+            setDialogOpen(true);
+        } catch (error) {
+            console.error('Error setting up edit form:', error);
+            setError('Failed to load task details');
+        }
+    };
+
+    const handleDeleteClick = (assignment) => {
+        setSelectedAssignment(assignment);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(
+                `http://localhost:5000/api/manager/task-assignments/${selectedAssignment._id}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
             );
             fetchAssignments();
-            handleCloseDialog();
-            setSuccessMessage(`Task successfully assigned to ${
-                pantryStaff.find(staff => staff._id === formData.staffId)?.name
-            }`);
-            setSnackbarOpen(true);
+            setDeleteDialogOpen(false);
+            setSelectedAssignment(null);
         } catch (error) {
-            setError('Failed to assign task');
-            setSnackbarOpen(true);
+            console.error('Error deleting task:', error);
+            setError('Failed to delete task');
         }
+    };
+
+    const renderDietChartDetails = () => {
+        if (!activeDietChart) return null;
+
+        const selectedMeal = activeDietChart.meals.find(meal => meal.type === formData.mealType);
+
+        return (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                <Typography variant="subtitle1" gutterBottom>
+                    Active Diet Chart Details:
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Period: {new Date(activeDietChart.startDate).toLocaleDateString()} 
+                    - {new Date(activeDietChart.endDate).toLocaleDateString()}
+                </Typography>
+
+                {selectedMeal && (
+                    <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                            {selectedMeal.type.charAt(0).toUpperCase() + selectedMeal.type.slice(1)} Details:
+                        </Typography>
+                        <Box sx={{ pl: 2 }}>
+                            <Typography variant="body2" gutterBottom>
+                                Scheduled Time: {selectedMeal.timing}
+                            </Typography>
+                            <Typography variant="body2" gutterBottom>
+                                Items:
+                            </Typography>
+                            <ul style={{ margin: 0, paddingLeft: 20 }}>
+                                {selectedMeal.items.map((item, index) => (
+                                    <li key={index}>
+                                        <Typography variant="body2">
+                                            {item.name} - {item.quantity}
+                                            {item.instructions && ` (${item.instructions})`}
+                                        </Typography>
+                                    </li>
+                                ))}
+                            </ul>
+                            {selectedMeal.specialInstructions?.length > 0 && (
+                                <>
+                                    <Typography variant="body2" gutterBottom sx={{ mt: 1 }}>
+                                        Special Instructions:
+                                    </Typography>
+                                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                                        {selectedMeal.specialInstructions.map((instruction, index) => (
+                                            <li key={index}>
+                                                <Typography variant="body2">{instruction}</Typography>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            )}
+                        </Box>
+                    </Box>
+                )}
+
+                {activeDietChart.specialDietaryRequirements?.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                            Special Dietary Requirements:
+                        </Typography>
+                        <ul style={{ margin: 0, paddingLeft: 20 }}>
+                            {activeDietChart.specialDietaryRequirements.map((req, index) => (
+                                <li key={index}>
+                                    <Typography variant="body2">{req}</Typography>
+                                </li>
+                            ))}
+                        </ul>
+                    </Box>
+                )}
+            </Box>
+        );
     };
 
     const handleCloseDialog = () => {
-        setAssignDialogOpen(false);
+        setDialogOpen(false);
+        setEditingAssignment(null);
+        setActiveDietChart(null);
         setFormData({
-            taskType: 'preparation',
             staffId: '',
             patientId: '',
             dietChartId: '',
+            taskType: '',
             mealType: '',
-            scheduledTime: new Date().toISOString().slice(0, 16)
+            scheduledTime: '',
+            specialInstructions: ''
         });
-    };
-
-    const getStatusColor = (type, status) => {
-        if (type === 'preparation') {
-            switch (status) {
-                case 'preparing': return 'warning';
-                case 'ready': return 'success';
-                default: return 'default';
-            }
-        } else {
-            switch (status) {
-                case 'in-transit': return 'warning';
-                case 'delivered': return 'success';
-                default: return 'default';
-            }
-        }
-    };
-
-    const handleCloseSnackbar = (event, reason) => {
-        if (reason === 'clickaway') {
-            return;
-        }
-        setSnackbarOpen(false);
-    };
-
-    const getDefaultTimeForMeal = (mealType) => {
-        const today = new Date();
-        switch (mealType) {
-            case 'breakfast':
-                return new Date(today.setHours(8, 0, 0, 0));
-            case 'lunch':
-                return new Date(today.setHours(12, 30, 0, 0));
-            case 'dinner':
-                return new Date(today.setHours(19, 0, 0, 0));
-            default:
-                return today;
-        }
     };
 
     if (loading) return <CircularProgress />;
@@ -198,299 +332,145 @@ const TaskAssignmentOverview = () => {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                    Current Task Assignments
-                </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h6">Task Assignments</Typography>
                 <Button
                     variant="contained"
-                    startIcon={<Assignment />}
-                    onClick={() => setAssignDialogOpen(true)}
+                    startIcon={<AddIcon />}
+                    onClick={() => setDialogOpen(true)}
                 >
                     Assign New Task
                 </Button>
             </Box>
 
             <TableContainer component={Paper}>
-                <Table size="small">
+                <Table>
                     <TableHead>
                         <TableRow>
                             <TableCell>Staff Name</TableCell>
-                            <TableCell>Task Type</TableCell>
                             <TableCell>Patient</TableCell>
-                            <TableCell>Room</TableCell>
+                            <TableCell>Task Type</TableCell>
                             <TableCell>Meal Type</TableCell>
-                            <TableCell>Status</TableCell>
                             <TableCell>Scheduled Time</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {assignments.map((assignment) => (
                             <TableRow key={assignment._id}>
-                                <TableCell>
-                                    {assignment.assignedTo.name}
-                                </TableCell>
-                                <TableCell>
-                                    <Chip 
-                                        label={assignment.taskType}
-                                        color={assignment.taskType === 'preparation' ? 'primary' : 'secondary'}
-                                        size="small"
-                                    />
-                                </TableCell>
-                                <TableCell>{assignment.patientId.name}</TableCell>
-                                <TableCell>{assignment.patientId.roomNumber}</TableCell>
-                                <TableCell sx={{ textTransform: 'capitalize' }}>
-                                    {assignment.mealType}
-                                </TableCell>
-                                <TableCell>
-                                    <Chip
-                                        label={assignment.taskType === 'preparation' ? 
-                                            assignment.preparationStatus : 
-                                            assignment.deliveryStatus}
-                                        color={getStatusColor(
-                                            assignment.taskType,
-                                            assignment.taskType === 'preparation' ? 
-                                                assignment.preparationStatus : 
-                                                assignment.deliveryStatus
-                                        )}
-                                        size="small"
-                                    />
-                                </TableCell>
+                                <TableCell>{assignment.assignedTo?.name}</TableCell>
+                                <TableCell>{assignment.patientId?.name}</TableCell>
+                                <TableCell>{assignment.taskType}</TableCell>
+                                <TableCell>{assignment.mealType}</TableCell>
                                 <TableCell>
                                     {new Date(assignment.scheduledTime).toLocaleString()}
                                 </TableCell>
-                            </TableRow>
-                        ))}
-                        {assignments.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={7} align="center">
-                                    <Typography color="text.secondary">
-                                        No active task assignments
-                                    </Typography>
+                                <TableCell>
+                                    <Chip 
+                                        label={assignment.preparationStatus} 
+                                        color={assignment.preparationStatus === 'completed' ? 'success' : 'primary'}
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <IconButton 
+                                        color="primary"
+                                        onClick={() => handleEditClick(assignment)}
+                                    >
+                                        <EditIcon />
+                                    </IconButton>
+                                    <IconButton 
+                                        color="error"
+                                        onClick={() => handleDeleteClick(assignment)}
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
                                 </TableCell>
                             </TableRow>
-                        )}
+                        ))}
                     </TableBody>
                 </Table>
             </TableContainer>
 
-            <Dialog 
-                open={assignDialogOpen} 
-                onClose={() => setAssignDialogOpen(false)}
-                maxWidth="sm"
-                fullWidth
-            >
+            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+                <DialogTitle>Confirm Delete</DialogTitle>
+                <DialogContent>
+                    Are you sure you want to delete this task assignment?
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+                        Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
                 <DialogTitle>
-                    Assign New Task
+                    {editingAssignment ? 'Edit Task Assignment' : 'Assign New Task'}
                 </DialogTitle>
                 <DialogContent>
-                    <FormControl fullWidth sx={{ mt: 2, mb: 2 }}>
+                    <FormControl fullWidth sx={{ mt: 2 }}>
                         <InputLabel>Task Type</InputLabel>
                         <Select
                             value={formData.taskType}
+                            onChange={handleInputChange('taskType')}
                             label="Task Type"
-                            onChange={(e) => setFormData({ ...formData, taskType: e.target.value })}
                         >
                             <MenuItem value="preparation">Food Preparation</MenuItem>
                             <MenuItem value="delivery">Food Delivery</MenuItem>
                         </Select>
                     </FormControl>
 
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel>Patient</InputLabel>
+                    <FormControl fullWidth sx={{ mt: 2 }}>
+                        <InputLabel>Select Staff</InputLabel>
+                        <Select
+                            value={formData.staffId}
+                            onChange={handleInputChange('staffId')}
+                            label="Select Staff"
+                        >
+                            {pantryStaff
+                                .filter(staff => 
+                                    formData.taskType === 'preparation' 
+                                        ? staff.role === 'pantry' 
+                                        : staff.role === 'delivery'
+                                )
+                                .map((staff) => (
+                                    <MenuItem key={staff._id} value={staff._id}>
+                                        {staff.name} ({staff.role})
+                                    </MenuItem>
+                                ))
+                            }
+                        </Select>
+                    </FormControl>
+
+                    <FormControl fullWidth sx={{ mt: 2 }}>
+                        <InputLabel>Select Patient</InputLabel>
                         <Select
                             value={formData.patientId}
-                            label="Patient"
-                            onChange={(e) => setFormData({ 
-                                ...formData, 
-                                patientId: e.target.value
-                            })}
+                            onChange={handleInputChange('patientId')}
+                            label="Select Patient"
                         >
                             {patients.map((patient) => (
                                 <MenuItem key={patient._id} value={patient._id}>
-                                    {patient.name} - Room {patient.roomNumber}
+                                    {`${patient.name} (Room: ${patient.roomNumber})`}
                                 </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
 
-                    {formData.patientId && activeDietChart && (
-                        <Paper sx={{ mb: 2, p: 2 }} variant="outlined">
-                            <Typography variant="subtitle1" gutterBottom color="primary" sx={{ fontWeight: 'bold' }}>
-                                Active Diet Chart Details
-                            </Typography>
-                            
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="subtitle2" color="text.secondary">
-                                    Period
-                                </Typography>
-                                <Typography variant="body2">
-                                    {new Date(activeDietChart.startDate).toLocaleDateString()} - {' '}
-                                    {new Date(activeDietChart.endDate).toLocaleDateString()}
-                                </Typography>
-                            </Box>
+                    {formData.taskType === 'preparation' && formData.patientId && renderDietChartDetails()}
 
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="subtitle2" color="text.secondary">
-                                    Dietary Type
-                                </Typography>
-                                <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                                    {activeDietChart.dietaryType}
-                                </Typography>
-                            </Box>
-
-                            {activeDietChart.specialDietaryRequirements?.length > 0 && (
-                                <Box sx={{ mb: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Special Requirements
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                                        {activeDietChart.specialDietaryRequirements.map((req, index) => (
-                                            <Chip 
-                                                key={index}
-                                                label={req}
-                                                size="small"
-                                                color="secondary"
-                                                variant="outlined"
-                                            />
-                                        ))}
-                                    </Box>
-                                </Box>
-                            )}
-
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="subtitle2" color="text.secondary">
-                                    Meal Schedule
-                                </Typography>
-                                <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
-                                    <Table size="small">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Meal</TableCell>
-                                                <TableCell>Recommended Time</TableCell>
-                                                <TableCell>Items</TableCell>
-                                                <TableCell>Calories</TableCell>
-                                                <TableCell>Portion Size</TableCell>
-                                                <TableCell>Special Instructions</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {[
-                                                { type: 'breakfast', time: '08:00 - 09:00' },
-                                                { type: 'lunch', time: '12:30 - 13:30' },
-                                                { type: 'dinner', time: '19:00 - 20:00' }
-                                            ].map((meal) => (
-                                                <TableRow key={meal.type}>
-                                                    <TableCell sx={{ textTransform: 'capitalize' }}>
-                                                        {meal.type}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {meal.time}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {activeDietChart[`${meal.type}Items`]?.map((item, index) => (
-                                                            <Chip
-                                                                key={index}
-                                                                label={item}
-                                                                size="small"
-                                                                variant="outlined"
-                                                                sx={{ m: 0.2 }}
-                                                            />
-                                                        ))}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {activeDietChart[`${meal.type}Calories`]} kcal
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {activeDietChart[`${meal.type}PortionSize`] || 'Standard'}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {activeDietChart[`${meal.type}Notes`] || '-'}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Box>
-
-                            <Box sx={{ mb: 2, mt: 1 }}>
-                                <Typography variant="caption" color="text.secondary">
-                                    * Recommended meal timings are guidelines. Actual delivery time will be based on the scheduled time you select.
-                                </Typography>
-                            </Box>
-
-                            {activeDietChart.allergies?.length > 0 && (
-                                <Box sx={{ mb: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary" sx={{ color: 'error.main' }}>
-                                        Allergies
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                                        {activeDietChart.allergies.map((allergy, index) => (
-                                            <Chip 
-                                                key={index}
-                                                label={allergy}
-                                                size="small"
-                                                color="error"
-                                                variant="outlined"
-                                            />
-                                        ))}
-                                    </Box>
-                                </Box>
-                            )}
-
-                            {activeDietChart.additionalNotes && (
-                                <Box>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Additional Notes
-                                    </Typography>
-                                    <Typography variant="body2">
-                                        {activeDietChart.additionalNotes}
-                                    </Typography>
-                                </Box>
-                            )}
-                        </Paper>
-                    )}
-
-                    <FormControl fullWidth sx={{ mb: 2 }}>
+                    <FormControl fullWidth sx={{ mt: 2 }}>
                         <InputLabel>Meal Type</InputLabel>
                         <Select
                             value={formData.mealType}
+                            onChange={handleInputChange('mealType')}
                             label="Meal Type"
-                            onChange={(e) => {
-                                const selectedMealType = e.target.value;
-                                const defaultTime = getDefaultTimeForMeal(selectedMealType);
-                                setFormData({ 
-                                    ...formData, 
-                                    mealType: selectedMealType,
-                                    scheduledTime: defaultTime.toISOString().slice(0, 16)
-                                });
-                            }}
                         >
-                            <MenuItem value="breakfast">Breakfast (8:00 - 9:00)</MenuItem>
-                            <MenuItem value="lunch">Lunch (12:30 - 13:30)</MenuItem>
-                            <MenuItem value="dinner">Dinner (19:00 - 20:00)</MenuItem>
-                        </Select>
-                    </FormControl>
-
-                    {formData.taskType === 'preparation' && formData.mealType && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                            * For preparation tasks, please schedule at least 1 hour before the recommended meal time.
-                        </Typography>
-                    )}
-
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel>Assign To Staff</InputLabel>
-                        <Select
-                            value={formData.staffId}
-                            label="Assign To Staff"
-                            onChange={(e) => setFormData({ ...formData, staffId: e.target.value })}
-                        >
-                            {pantryStaff.map((staff) => (
-                                <MenuItem key={staff._id} value={staff._id}>
-                                    {staff.name} - {staff.location}
-                                </MenuItem>
-                            ))}
+                            <MenuItem value="breakfast">Breakfast</MenuItem>
+                            <MenuItem value="lunch">Lunch</MenuItem>
+                            <MenuItem value="dinner">Dinner</MenuItem>
                         </Select>
                     </FormControl>
 
@@ -499,41 +479,39 @@ const TaskAssignmentOverview = () => {
                         label="Scheduled Time"
                         type="datetime-local"
                         value={formData.scheduledTime}
-                        onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                        InputLabelProps={{
-                            shrink: true,
-                        }}
+                        onChange={handleInputChange('scheduledTime')}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ mt: 2 }}
+                    />
+
+                    <TextField
+                        fullWidth
+                        label="Special Instructions"
+                        multiline
+                        rows={3}
+                        value={formData.specialInstructions}
+                        onChange={handleInputChange('specialInstructions')}
+                        sx={{ mt: 2 }}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog}>
-                        Cancel
-                    </Button>
+                    <Button onClick={handleCloseDialog}>Cancel</Button>
                     <Button 
-                        variant="contained" 
                         onClick={handleAssignTask}
-                        disabled={!formData.staffId || !formData.patientId || !formData.mealType || !activeDietChart}
+                        variant="contained"
+                        disabled={
+                            !formData.staffId || 
+                            !formData.patientId || 
+                            !formData.taskType || 
+                            !formData.mealType || 
+                            !formData.scheduledTime || 
+                            (formData.taskType === 'preparation' && !editingAssignment && !activeDietChart)
+                        }
                     >
-                        Assign Task
+                        {editingAssignment ? 'Update Task' : 'Assign Task'}
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            <Snackbar
-                open={snackbarOpen}
-                autoHideDuration={4000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-            >
-                <MuiAlert
-                    elevation={6}
-                    variant="filled"
-                    onClose={handleCloseSnackbar}
-                    severity={error ? "error" : "success"}
-                >
-                    {error || successMessage}
-                </MuiAlert>
-            </Snackbar>
         </Box>
     );
 };
