@@ -48,11 +48,18 @@ const DeliveryDashboard = () => {
 
     const fetchDeliveries = async () => {
         try {
+            setLoading(true);
+            console.log('Fetching deliveries...'); // Debug log
             const response = await api.get('/delivery/tasks');
+            console.log('Deliveries response:', response.data); // Debug log
             setDeliveries(response.data);
             setError(null);
         } catch (error) {
-            console.error('Error fetching deliveries:', error);
+            console.error('Error fetching deliveries:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
             setError('Failed to load deliveries');
         } finally {
             setLoading(false);
@@ -61,8 +68,9 @@ const DeliveryDashboard = () => {
 
     const fetchStats = async () => {
         try {
-            const token = localStorage.getItem('token');
+            console.log('Fetching delivery stats...'); // Debug log
             const response = await api.get('/delivery/stats');
+            console.log('Stats response:', response.data); // Debug log
             setStats(response.data);
         } catch (error) {
             console.error('Error fetching stats:', error);
@@ -71,18 +79,16 @@ const DeliveryDashboard = () => {
 
     const handleMarkDelivered = async (deliveryId) => {
         try {
-            const token = localStorage.getItem('token');
-            await api.put(
-                `/delivery/mark-delivered/${deliveryId}`,
-                { notes: deliveryNote },
-                { headers: { Authorization: `Bearer ${token}` }}
-            );
+            await api.put(`/delivery/mark-delivered/${deliveryId}`, {
+                notes: deliveryNote
+            });
             setDialogOpen(false);
             setDeliveryNote('');
-            fetchDeliveries();
-            fetchStats();
+            await fetchDeliveries();
+            await fetchStats();
         } catch (error) {
             console.error('Error marking delivery as complete:', error);
+            setError('Failed to update delivery status');
         }
     };
 
@@ -117,14 +123,16 @@ const DeliveryDashboard = () => {
         );
     }
 
+    if (error) {
+        return (
+            <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+            </Alert>
+        );
+    }
+
     return (
         <Box>
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
-
             <Typography variant="h4" gutterBottom>
                 Delivery Dashboard
             </Typography>
