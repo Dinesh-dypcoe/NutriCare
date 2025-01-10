@@ -26,7 +26,7 @@ import {
 import {
     Info as InfoIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../services/api';
 
 const PreparationTasks = () => {
     const [tasks, setTasks] = useState([]);
@@ -58,14 +58,11 @@ const PreparationTasks = () => {
 
     const fetchTasks = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/pantry/preparation-tasks', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/pantry/preparation-tasks');
             setTasks(response.data);
             setError(null);
         } catch (error) {
-            console.error('Error fetching tasks:', error);
+            console.error('Error fetching preparation tasks:', error);
             setError('Failed to load preparation tasks');
         } finally {
             setLoading(false);
@@ -75,8 +72,8 @@ const PreparationTasks = () => {
     const handleStatusUpdate = async (taskId, newStatus) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(
-                `http://localhost:5000/api/pantry/preparation-tasks/${taskId}`, 
+            await api.put(
+                `/pantry/preparation-tasks/${taskId}`, 
                 { preparationStatus: newStatus },
                 { headers: { Authorization: `Bearer ${token}` }}
             );

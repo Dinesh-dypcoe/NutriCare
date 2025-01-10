@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, Search as SearchIcon } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
-import { patientAPI } from '../../services/api';
+import api from '../../services/api';
 
 const PatientList = () => {
     const [patients, setPatients] = useState([]);
@@ -32,7 +32,7 @@ const PatientList = () => {
     const fetchPatients = async () => {
         try {
             setLoading(true);
-            const response = await patientAPI.getAll();
+            const response = await api.get('/manager/patients');
             console.log('Fetched patients:', response.data); // Debug log
             setPatients(response.data);
             setError(null);
@@ -47,7 +47,7 @@ const PatientList = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this patient?')) {
             try {
-                await patientAPI.delete(id);
+                await api.delete(`/manager/patients/${id}`);
                 fetchPatients();
             } catch (error) {
                 console.error('Error deleting patient:', error);

@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import api from '../../services/api';
 
 const ManagerDashboard = () => {
     const theme = useTheme();
@@ -46,12 +46,9 @@ const ManagerDashboard = () => {
 
     const fetchDashboardData = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const headers = { Authorization: `Bearer ${token}` };
-
             const [statsRes, activitiesRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/manager/dashboard-stats', { headers }),
-                axios.get('http://localhost:5000/api/manager/recent-activities', { headers })
+                api.get('/manager/dashboard-stats'),
+                api.get('/manager/recent-activities')
             ]);
 
             setStats(statsRes.data);

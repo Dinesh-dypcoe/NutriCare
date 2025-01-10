@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { dietChartAPI, patientAPI } from '../../services/api';
+import api from '../../services/api';
 
 const DietChartForm = () => {
     const { id } = useParams();
@@ -65,7 +65,7 @@ const DietChartForm = () => {
 
     const fetchPatients = async () => {
         try {
-            const response = await patientAPI.getAll();
+            const response = await api.get('/manager/patients');
             setPatients(response.data);
         } catch (error) {
             console.error('Error fetching patients:', error);
@@ -75,7 +75,7 @@ const DietChartForm = () => {
 
     const fetchDietChart = async () => {
         try {
-            const response = await dietChartAPI.getById(id);
+            const response = await api.get(`/manager/diet-charts/${id}`);
             
             // Format the dates to YYYY-MM-DD format for the input fields
             const formattedData = {
@@ -122,9 +122,9 @@ const DietChartForm = () => {
             console.log('Submitting diet chart:', formData);
 
             if (id) {
-                await dietChartAPI.update(id, formData);
+                await api.put(`/manager/diet-charts/${id}`, formData);
             } else {
-                await dietChartAPI.create(formData);
+                await api.post('/manager/diet-charts', formData);
             }
             
             navigate('/manager/diet-charts');

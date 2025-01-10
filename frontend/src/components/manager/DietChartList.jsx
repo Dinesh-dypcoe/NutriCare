@@ -24,8 +24,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, Visibility, Search as SearchIcon } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { dietChartAPI } from '../../services/api';
+import api from '../../services/api';
 
 const DietChartList = () => {
     const [dietCharts, setDietCharts] = useState([]);
@@ -42,20 +41,11 @@ const DietChartList = () => {
     const navigate = useNavigate();
 
     const fetchDietCharts = async () => {
-        setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/diet-charts', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            console.log('Fetched diet charts:', response.data);
+            const response = await api.get('/manager/diet-charts');
             setDietCharts(response.data);
-            setError(null);
         } catch (error) {
             console.error('Error fetching diet charts:', error);
-            setError('Failed to load diet charts');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -71,7 +61,7 @@ const DietChartList = () => {
     const handleDeleteConfirm = async () => {
         try {
             setLoading(true);
-            await dietChartAPI.delete(selectedChartId);
+            await api.delete(selectedChartId);
             
             // Update the list
             setDietCharts(prevCharts => 
