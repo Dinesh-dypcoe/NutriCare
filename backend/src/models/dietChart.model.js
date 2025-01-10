@@ -1,18 +1,26 @@
 const mongoose = require('mongoose');
 
+const mealItemSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true
+    },
+    quantity: String,
+    instructions: String
+});
+
 const mealSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: ['breakfast', 'lunch', 'dinner'],
         required: true
     },
-    items: [{
-        name: String,
-        quantity: String,
-        instructions: String
-    }],
+    items: [mealItemSchema],
     specialInstructions: [String],
-    timing: String
+    timing: {
+        type: String,
+        required: true
+    }
 });
 
 const dietChartSchema = new mongoose.Schema({
@@ -21,7 +29,18 @@ const dietChartSchema = new mongoose.Schema({
         ref: 'Patient',
         required: true
     },
-    meals: [mealSchema],
+    meals: {
+        type: [mealSchema],
+        required: true,
+        validate: [
+            {
+                validator: function(meals) {
+                    return meals && meals.length > 0;
+                },
+                message: 'At least one meal is required'
+            }
+        ]
+    },
     startDate: {
         type: Date,
         required: true
@@ -30,47 +49,26 @@ const dietChartSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    specialDietaryRequirements: [String],
     status: {
         type: String,
-        enum: ['active', 'completed', 'cancelled'],
+        enum: ['active', 'inactive'],
         default: 'active'
     },
-    // Breakfast details
-    breakfastItems: {
-        type: [String],
-        default: []
-    },
+    specialDietaryRequirements: [String],
+    allergies: [String],
+    additionalNotes: String,
     breakfastCalories: {
         type: Number,
-        required: true
-    },
-    breakfastPortionSize: String,
-    breakfastNotes: String,
-
-    // Lunch details
-    lunchItems: {
-        type: [String],
-        default: []
+        default: 0
     },
     lunchCalories: {
         type: Number,
-        required: true
-    },
-    lunchPortionSize: String,
-    lunchNotes: String,
-
-    // Dinner details
-    dinnerItems: {
-        type: [String],
-        default: []
+        default: 0
     },
     dinnerCalories: {
         type: Number,
-        required: true
-    },
-    dinnerPortionSize: String,
-    dinnerNotes: String
+        default: 0
+    }
 }, {
     timestamps: true
 });

@@ -73,7 +73,22 @@ const DietChartForm = () => {
     const fetchDietChart = async () => {
         try {
             const response = await dietChartAPI.getById(id);
-            setFormData(response.data);
+            
+            // Format the dates to YYYY-MM-DD format for the input fields
+            const formattedData = {
+                ...response.data,
+                startDate: new Date(response.data.startDate).toISOString().split('T')[0],
+                endDate: new Date(response.data.endDate).toISOString().split('T')[0],
+                patientId: response.data.patientId._id || response.data.patientId, // Handle both populated and unpopulated cases
+                meals: response.data.meals.map(meal => ({
+                    ...meal,
+                    items: meal.items.length > 0 ? meal.items : [{ name: '', quantity: '', instructions: '' }],
+                    specialInstructions: meal.specialInstructions.length > 0 ? meal.specialInstructions : ['']
+                }))
+            };
+
+            console.log('Fetched diet chart data:', formattedData);
+            setFormData(formattedData);
         } catch (error) {
             console.error('Error fetching diet chart:', error);
             setError('Failed to load diet chart');
@@ -83,16 +98,36 @@ const DietChartForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setError('');
+
         try {
+            // Validate meals have required fields
+            const validMeals = formData.meals.every(meal => 
+                meal.type && 
+                meal.timing && 
+                meal.items && 
+                meal.items.length > 0 &&
+                meal.items.every(item => item.name)
+            );
+
+            if (!validMeals) {
+                setError('Please fill in all required meal information');
+                setLoading(false);
+                return;
+            }
+
+            console.log('Submitting diet chart:', formData);
+
             if (id) {
                 await dietChartAPI.update(id, formData);
             } else {
                 await dietChartAPI.create(formData);
             }
+            
             navigate('/manager/diet-charts');
         } catch (error) {
             console.error('Error saving diet chart:', error);
-            setError('Failed to save diet chart');
+            setError(error.response?.data?.message || 'Failed to save diet chart');
         } finally {
             setLoading(false);
         }

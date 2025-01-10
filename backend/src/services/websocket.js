@@ -54,7 +54,7 @@ class WebSocketService {
 
     notifyPantryStaff(notification) {
         this.clients.forEach((client, ws) => {
-            if (client.role === 'pantry') {
+            if (client.role === 'pantry' || client.role === 'manager') {
                 ws.send(JSON.stringify(notification));
             }
         });

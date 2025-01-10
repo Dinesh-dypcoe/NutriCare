@@ -6,7 +6,18 @@ const mongoose = require('mongoose');
 
 const seedSampleData = async () => {
     try {
-        // Clear existing data
+        // Check if data already exists
+        const patientsCount = await Patient.countDocuments();
+        const dietChartsCount = await DietChart.countDocuments();
+        const deliveriesCount = await Delivery.countDocuments();
+
+        // If data exists, skip seeding
+        if (patientsCount > 0 && dietChartsCount > 0 && deliveriesCount > 0) {
+            console.log('Database already contains data, skipping seeding');
+            return;
+        }
+
+        // Only clear and seed if no data exists
         await Promise.all([
             mongoose.connection.collection('patients').deleteMany({}),
             mongoose.connection.collection('dietcharts').deleteMany({}),

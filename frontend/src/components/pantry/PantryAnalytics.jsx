@@ -29,6 +29,7 @@ import {
 import axios from 'axios';
 import { format } from 'date-fns';
 import DownloadIcon from '@mui/icons-material/Download';
+import websocketService from '../../services/websocket';
 
 const PantryAnalytics = () => {
     const theme = useTheme();
@@ -48,7 +49,39 @@ const PantryAnalytics = () => {
 
     useEffect(() => {
         fetchAnalytics();
+
+        // Subscribe to WebSocket updates
+        websocketService.addListener('analytics', handleWebSocketUpdate);
+
+        // Set up polling for backup
+        const pollInterval = setInterval(fetchAnalytics, 30000); // Poll every 30 seconds
+
+        return () => {
+            websocketService.removeListener('analytics');
+            clearInterval(pollInterval);
+        };
     }, []);
+
+    const handleWebSocketUpdate = (notification) => {
+        if (notification.updateType === 'analytics' && notification.data) {
+            console.log('Received WebSocket update:', notification.data); // Debug log
+            
+            // Update the analytics state with new delivery data
+            setAnalytics(prevAnalytics => {
+                const formattedData = notification.data.deliveriesPerDay.map(item => ({
+                    date: format(new Date(item._id || item.date), 'MMM dd'),
+                    count: item.count
+                }));
+
+                console.log('Formatted WebSocket data:', formattedData); // Debug log
+
+                return {
+                    ...prevAnalytics,
+                    deliveriesPerDay: formattedData
+                };
+            });
+        }
+    };
 
     const fetchAnalytics = async () => {
         try {
@@ -57,10 +90,14 @@ const PantryAnalytics = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
+            console.log('Fetched analytics data:', response.data); // Debug log
+
             const formattedData = response.data.deliveriesPerDay.map(item => ({
                 date: format(new Date(item.date), 'MMM dd'),
                 count: item.count
             }));
+
+            console.log('Formatted fetched data:', formattedData); // Debug log
 
             setAnalytics({
                 ...response.data,
