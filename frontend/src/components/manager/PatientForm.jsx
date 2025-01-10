@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { patientAPI } from '../../services/api';
+import api from '../../services/api';
 
 const PatientForm = () => {
     const { id } = useParams();
@@ -46,7 +46,7 @@ const PatientForm = () => {
 
     const fetchPatient = async () => {
         try {
-            const response = await patientAPI.getById(id);
+            const response = await api.getById(id);
             setFormData(response.data);
         } catch (error) {
             setError('Failed to fetch patient details');
@@ -56,19 +56,15 @@ const PatientForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
         try {
             if (id) {
-                await patientAPI.update(id, formData);
+                await api.put(`/manager/patients/${id}`, formData);
             } else {
-                await patientAPI.create(formData);
+                await api.post('/manager/patients', formData);
             }
             navigate('/manager/patients');
         } catch (error) {
-            setError('Failed to save patient');
-            console.error('Error:', error);
-        } finally {
-            setLoading(false);
+            console.error('Error saving patient:', error);
         }
     };
 

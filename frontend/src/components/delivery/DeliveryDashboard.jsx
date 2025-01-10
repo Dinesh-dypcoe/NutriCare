@@ -24,7 +24,7 @@ import {
     CircularProgress,
     Alert
 } from '@mui/material';
-import axios from 'axios';
+import api from '../../services/api';
 import DeliveryHistory from './DeliveryHistory';
 
 const DeliveryDashboard = () => {
@@ -48,10 +48,7 @@ const DeliveryDashboard = () => {
 
     const fetchDeliveries = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/delivery/my-deliveries', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/delivery/tasks');
             setDeliveries(response.data);
             setError(null);
         } catch (error) {
@@ -65,9 +62,7 @@ const DeliveryDashboard = () => {
     const fetchStats = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/delivery/stats', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/delivery/stats');
             setStats(response.data);
         } catch (error) {
             console.error('Error fetching stats:', error);
@@ -77,8 +72,8 @@ const DeliveryDashboard = () => {
     const handleMarkDelivered = async (deliveryId) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(
-                `http://localhost:5000/api/delivery/mark-delivered/${deliveryId}`,
+            await api.put(
+                `/delivery/mark-delivered/${deliveryId}`,
                 { notes: deliveryNote },
                 { headers: { Authorization: `Bearer ${token}` }}
             );

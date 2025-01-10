@@ -13,10 +13,24 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Add request logging
+api.interceptors.request.use(request => {
+    console.log('Starting Request:', request.url);
+    return request;
+});
+
 // Response interceptor for handling errors
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        console.log('Response:', response.config.url, response.status);
+        return response;
+    },
     (error) => {
+        console.error('API Error:', {
+            url: error.config?.url,
+            status: error.response?.status,
+            data: error.response?.data
+        });
         if (error.response?.status === 401) {
             localStorage.removeItem('token');
             localStorage.removeItem('userRole');

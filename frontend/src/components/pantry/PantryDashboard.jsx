@@ -25,7 +25,7 @@ import PreparationTasks from './PreparationTasks';
 import DeliveryAssignments from './DeliveryAssignments';
 import DeliveryPersonnel from './DeliveryPersonnel';
 import PantryAnalytics from './PantryAnalytics';
-import axios from 'axios';
+import api from '../../services/api';
 
 const PantryDashboard = () => {
     const theme = useTheme();
@@ -52,7 +52,7 @@ const PantryDashboard = () => {
     const fetchDashboardStats = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/pantry/dashboard-stats', {
+            const response = await api.get('/pantry/dashboard-stats', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setStats(response.data);
