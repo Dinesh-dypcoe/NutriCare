@@ -74,12 +74,12 @@ const TaskAssignmentOverview = () => {
     const fetchPantryStaff = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/manager/pantry-staff', {
+            const response = await axios.get('http://localhost:5000/api/manager/staff', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setPantryStaff(response.data);
         } catch (error) {
-            console.error('Error fetching pantry staff:', error);
+            console.error('Error fetching staff:', error);
         }
     };
 
@@ -110,10 +110,20 @@ const TaskAssignmentOverview = () => {
     const handleAssignTask = async () => {
         try {
             const token = localStorage.getItem('token');
+            const taskData = {
+                staffId: formData.staffId,
+                patientId: formData.patientId,
+                dietChartId: formData.taskType === 'preparation' ? activeDietChart?._id : null,
+                taskType: formData.taskType,
+                mealType: formData.mealType,
+                scheduledTime: formData.scheduledTime,
+                specialInstructions: formData.specialInstructions
+            };
+
             if (editingAssignment) {
                 await axios.put(
                     `http://localhost:5000/api/manager/task-assignments/${editingAssignment._id}`,
-                    formData,
+                    taskData,
                     {
                         headers: { Authorization: `Bearer ${token}` }
                     }
@@ -121,28 +131,19 @@ const TaskAssignmentOverview = () => {
             } else {
                 await axios.post(
                     'http://localhost:5000/api/manager/assign-task',
-                    formData,
+                    taskData,
                     {
                         headers: { Authorization: `Bearer ${token}` }
                     }
                 );
             }
 
-            fetchAssignments();
-            setDialogOpen(false);
-            setEditingAssignment(null);
-            setFormData({
-                staffId: '',
-                patientId: '',
-                dietChartId: '',
-                taskType: '',
-                mealType: '',
-                scheduledTime: '',
-                specialInstructions: ''
-            });
+            await fetchAssignments();
+            handleCloseDialog();
+            setError(null);
         } catch (error) {
             console.error('Error saving task:', error);
-            setError('Failed to save task');
+            setError(error.response?.data?.message || 'Failed to save task');
         }
     };
 
@@ -327,6 +328,28 @@ const TaskAssignmentOverview = () => {
         });
     };
 
+    const renderStatus = (assignment) => {
+        if (assignment.taskType === 'preparation') {
+            return (
+                <Chip 
+                    label={assignment.preparationStatus} 
+                    color={assignment.preparationStatus === 'ready' ? 'success' : 'primary'}
+                />
+            );
+        } else {
+            return (
+                <Chip 
+                    label={assignment.deliveryStatus}
+                    color={
+                        assignment.deliveryStatus === 'delivered' ? 'success' :
+                        assignment.deliveryStatus === 'in-transit' ? 'warning' : 
+                        'info'
+                    }
+                />
+            );
+        }
+    };
+
     if (loading) return <CircularProgress />;
     if (error) return <Alert severity="error">{error}</Alert>;
 
@@ -367,10 +390,7 @@ const TaskAssignmentOverview = () => {
                                     {new Date(assignment.scheduledTime).toLocaleString()}
                                 </TableCell>
                                 <TableCell>
-                                    <Chip 
-                                        label={assignment.preparationStatus} 
-                                        color={assignment.preparationStatus === 'completed' ? 'success' : 'primary'}
-                                    />
+                                    {renderStatus(assignment)}
                                 </TableCell>
                                 <TableCell>
                                     <IconButton 
@@ -430,11 +450,14 @@ const TaskAssignmentOverview = () => {
                             label="Select Staff"
                         >
                             {pantryStaff
-                                .filter(staff => 
-                                    formData.taskType === 'preparation' 
-                                        ? staff.role === 'pantry' 
-                                        : staff.role === 'delivery'
-                                )
+                                .filter(staff => {
+                                    if (formData.taskType === 'preparation') {
+                                        return staff.role === 'pantry';
+                                    } else if (formData.taskType === 'delivery') {
+                                        return staff.role === 'delivery';
+                                    }
+                                    return true; // Show all staff if no task type selected
+                                })
                                 .map((staff) => (
                                     <MenuItem key={staff._id} value={staff._id}>
                                         {staff.name} ({staff.role})

@@ -9,7 +9,7 @@ const deliverySchema = new mongoose.Schema({
     dietChartId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'DietChart',
-        required: true
+        required: false
     },
     mealType: {
         type: String,

@@ -244,11 +244,33 @@ router.get('/recent-activities', auth, async (req, res) => {
 // Get all pantry staff
 router.get('/pantry-staff', auth, async (req, res) => {
     try {
-        const pantryStaff = await User.find({ role: 'pantry' })
-            .select('-password')
-            .sort({ createdAt: -1 });
-        res.json(pantryStaff);
+        const pantryStaff = await User.find({ 
+            role: { $in: ['pantry', 'delivery'] } 
+        })
+        .select('name email contactNumber role currentTask')
+        .sort({ createdAt: -1 });
+
+        // Get active tasks for each staff member
+        const staffWithTasks = await Promise.all(pantryStaff.map(async (staff) => {
+            const activeTask = await Delivery.findOne({
+                assignedTo: staff._id,
+                $or: [
+                    { preparationStatus: { $in: ['preparing'] } },
+                    { deliveryStatus: { $in: ['assigned', 'in-transit'] } }
+                ]
+            });
+
+            return {
+                ...staff.toObject(),
+                currentTask: activeTask ? 
+                    (activeTask.preparationStatus === 'preparing' ? 'cooking' : 'delivery') 
+                    : null
+            };
+        }));
+
+        res.json(staffWithTasks);
     } catch (error) {
+        console.error('Error fetching pantry staff:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -356,7 +378,7 @@ router.get('/available-tasks', auth, async (req, res) => {
 // Update the assign-task route
 router.post('/assign-task', auth, async (req, res) => {
     try {
-        const { staffId, patientId, dietChartId, taskType, mealType, scheduledTime } = req.body;
+        const { staffId, patientId, dietChartId, taskType, mealType, scheduledTime, specialInstructions } = req.body;
         
         // Find the staff member
         const staff = await User.findById(staffId);
@@ -364,31 +386,49 @@ router.post('/assign-task', auth, async (req, res) => {
             return res.status(404).json({ message: 'Staff member not found' });
         }
 
+        // Validate patient
+        const patient = await Patient.findById(patientId);
+        if (!patient) {
+            return res.status(404).json({ message: 'Patient not found' });
+        }
+
         // Create new delivery task
         const delivery = new Delivery({
             patientId,
-            dietChartId,
+            dietChartId: taskType === 'preparation' ? dietChartId : null,
             mealType,
             scheduledTime,
             assignedTo: staffId,
+            specialInstructions,
+            // Set initial status based on task type
             preparationStatus: taskType === 'preparation' ? 'preparing' : 'ready',
             deliveryStatus: taskType === 'delivery' ? 'assigned' : 'pending'
         });
 
         await delivery.save();
 
-        // Update staff's current tasks
-        staff.currentTasks = staff.currentTasks || [];
-        staff.currentTasks.push({
-            taskId: delivery._id,
-            type: taskType
+        // Update staff's current task type
+        await User.findByIdAndUpdate(staffId, {
+            $set: {
+                currentTask: taskType === 'preparation' ? 'cooking' : 'delivery'
+            }
         });
-        await staff.save();
 
-        res.json({ message: 'Task assigned successfully', delivery });
+        // Return the populated delivery object
+        const populatedDelivery = await Delivery.findById(delivery._id)
+            .populate('assignedTo', 'name role')
+            .populate('patientId', 'name roomNumber');
+
+        res.status(201).json({ 
+            message: 'Task assigned successfully', 
+            delivery: populatedDelivery 
+        });
     } catch (error) {
         console.error('Error assigning task:', error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ 
+            message: 'Failed to assign task', 
+            error: error.message 
+        });
     }
 });
 
@@ -604,6 +644,39 @@ router.delete('/task-assignments/:id', auth, async (req, res) => {
         res.json({ message: 'Task deleted successfully' });
     } catch (error) {
         console.error('Error deleting task:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Get all staff (both pantry and delivery)
+router.get('/staff', auth, async (req, res) => {
+    try {
+        const staff = await User.find({ 
+            role: { $in: ['pantry', 'delivery'] }
+        })
+        .select('name role currentTask');
+
+        // Get active tasks for each staff member
+        const staffWithTasks = await Promise.all(staff.map(async (member) => {
+            const activeTask = await Delivery.findOne({
+                assignedTo: member._id,
+                $or: [
+                    { preparationStatus: { $in: ['preparing'] } },
+                    { deliveryStatus: { $in: ['assigned', 'in-transit'] } }
+                ]
+            });
+
+            return {
+                ...member.toObject(),
+                currentTask: activeTask ? 
+                    (activeTask.preparationStatus === 'preparing' ? 'cooking' : 'delivery') 
+                    : null
+            };
+        }));
+
+        res.json(staffWithTasks);
+    } catch (error) {
+        console.error('Error fetching staff:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });

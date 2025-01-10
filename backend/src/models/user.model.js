@@ -25,16 +25,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    currentTasks: [{
-        taskId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Delivery'
-        },
-        type: {
-            type: String,
-            enum: ['preparation', 'delivery']
-        }
-    }]
+    currentTask: {
+        type: String,
+        enum: ['cooking', 'delivery', null],
+        default: null
+    }
 }, {
     timestamps: true
 });
