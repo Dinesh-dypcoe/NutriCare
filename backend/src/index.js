@@ -1,56 +1,46 @@
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
-const http = require('http');
+const cors = require('cors');
 require('dotenv').config();
 
-const errorHandler = require('./middleware/error');
-const WebSocketService = require('./services/websocket');
-const authRoutes = require('./routes/auth.routes');
-const pantryRoutes = require('./routes/pantry.routes');
-const deliveryRoutes = require('./routes/delivery.routes');
-const managerRoutes = require('./routes/manager.routes');
-
 const app = express();
-const server = http.createServer(app);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Initialize WebSocket service
-const wsService = new WebSocketService(server);
-app.set('wsService', wsService);
+// Add this root route
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'NutriCare API is running',
+        version: '1.0.0',
+        endpoints: {
+            auth: '/api/auth',
+            manager: '/api/manager',
+            pantry: '/api/pantry',
+            delivery: '/api/delivery'
+        }
+    });
+});
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/pantry', pantryRoutes);
-app.use('/api/delivery', deliveryRoutes);
-app.use('/api/manager', managerRoutes);
+app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/manager', require('./routes/manager.routes'));
+app.use('/api/pantry', require('./routes/pantry.routes'));
+app.use('/api/delivery', require('./routes/delivery.routes'));
 
-// Error Handler (should be last)
-app.use(errorHandler);
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ message: 'Something went wrong!' });
+});
 
-// Connect to MongoDB and start server
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-        console.log('Connected to MongoDB');
-        
-        const PORT = process.env.PORT || 5000;
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    })
-    .catch((err) => console.error('MongoDB connection error:', err));
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
-// Handle server shutdown gracefully
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        mongoose.connection.close(false, () => {
-            console.log('MongoDB connection closed');
-            process.exit(0);
-        });
-    });
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 }); 
