@@ -5,7 +5,7 @@ const Patient = require('../models/patient.model');
 const DietChart = require('../models/dietChart.model');
 const Delivery = require('../models/delivery.model');
 const User = require('../models/user.model');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // Get dashboard stats
 router.get('/dashboard-stats', auth, async (req, res) => {
