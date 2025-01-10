@@ -26,108 +26,219 @@ import {
 } from '@mui/material';
 import api from '../../services/api';
 import DeliveryHistory from './DeliveryHistory';
+import wsService from '../../services/websocket.js';
 
 const DeliveryDashboard = () => {
-    const [deliveries, setDeliveries] = useState([]);
-    const [selectedDelivery, setSelectedDelivery] = useState(null);
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [deliveryNote, setDeliveryNote] = useState('');
-    const [stats, setStats] = useState({
-        pendingDeliveries: 0,
-        completedToday: 0,
-        totalDelivered: 0
+    const [state, setState] = useState({
+        deliveries: [],
+        stats: {
+            pendingDeliveries: 0,
+            completedToday: 0,
+            totalDelivered: 0
+        },
+        activeTab: 0,
+        loading: true,
+        error: null,
+        selectedDelivery: null,
+        dialogOpen: false,
+        deliveryNote: ''
     });
-    const [activeTab, setActiveTab] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetchDeliveries();
-        fetchStats();
+        fetchData();
+        
+        // Connect to WebSocket
+        wsService.connect();
+
+        // Listen for new assignments
+        const handleNewAssignment = (data) => {
+            console.log('New delivery assignment received:', data);
+            fetchData(); // Refresh data when new assignment is received
+        };
+
+        // Listen for delivery updates
+        const handleDeliveryUpdate = (data) => {
+            console.log('Delivery update received:', data);
+            fetchData(); // Refresh data when delivery is updated
+        };
+
+        wsService.addListener('new_delivery_assignment', handleNewAssignment);
+        wsService.addListener('delivery_update', handleDeliveryUpdate);
+
+        // Cleanup
+        return () => {
+            wsService.removeListener('new_delivery_assignment', handleNewAssignment);
+            wsService.removeListener('delivery_update', handleDeliveryUpdate);
+        };
     }, []);
 
-    const fetchDeliveries = async () => {
+    const fetchData = async () => {
         try {
-            setLoading(true);
-            console.log('Fetching deliveries...'); // Debug log
-            const response = await api.get('/delivery/tasks');
-            console.log('Deliveries response:', response.data); // Debug log
-            setDeliveries(response.data);
-            setError(null);
-        } catch (error) {
-            console.error('Error fetching deliveries:', {
-                message: error.message,
-                response: error.response?.data,
-                status: error.response?.status
+            setState(prev => ({ ...prev, loading: true, error: null }));
+            
+            const [deliveriesRes, statsRes] = await Promise.all([
+                api.get('/delivery/my-deliveries'),
+                api.get('/delivery/stats')
+            ]);
+
+            console.log('Fetched data:', {
+                deliveries: deliveriesRes.data,
+                stats: statsRes.data
             });
-            setError('Failed to load deliveries');
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    const fetchStats = async () => {
-        try {
-            console.log('Fetching delivery stats...'); // Debug log
-            const response = await api.get('/delivery/stats');
-            console.log('Stats response:', response.data); // Debug log
-            setStats(response.data);
+            setState(prev => ({
+                ...prev,
+                deliveries: deliveriesRes.data || [],
+                stats: statsRes.data || {
+                    pendingDeliveries: 0,
+                    completedToday: 0,
+                    totalDelivered: 0
+                },
+                loading: false,
+                error: null
+            }));
         } catch (error) {
-            console.error('Error fetching stats:', error);
+            console.error('Error fetching data:', error);
+            setState(prev => ({
+                ...prev,
+                loading: false,
+                error: 'Failed to load data. Please try again.'
+            }));
         }
     };
 
-    const handleMarkDelivered = async (deliveryId) => {
+    const handleMarkDelivered = async () => {
         try {
-            await api.put(`/delivery/mark-delivered/${deliveryId}`, {
-                notes: deliveryNote
+            await api.put(`/delivery/mark-delivered/${state.selectedDelivery._id}`, {
+                notes: state.deliveryNote
             });
-            setDialogOpen(false);
-            setDeliveryNote('');
-            await fetchDeliveries();
-            await fetchStats();
+            setState(prev => ({
+                ...prev,
+                dialogOpen: false,
+                deliveryNote: ''
+            }));
+            fetchData(); // Refresh data after marking as delivered
         } catch (error) {
-            console.error('Error marking delivery as complete:', error);
-            setError('Failed to update delivery status');
+            console.error('Error marking delivery:', error);
+            setState(prev => ({
+                ...prev,
+                error: 'Failed to update delivery status'
+            }));
         }
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'pending':
-                return 'warning';
-            case 'in-transit':
-                return 'info';
-            case 'delivered':
-                return 'success';
-            default:
-                return 'default';
-        }
-    };
+    const renderStats = () => (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={4}>
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6">Pending Deliveries</Typography>
+                        <Typography variant="h4" color="warning.main">
+                            {state.stats.pendingDeliveries}
+                        </Typography>
+                    </CardContent>
+                </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6">Completed Today</Typography>
+                        <Typography variant="h4" color="success.main">
+                            {state.stats.completedToday}
+                        </Typography>
+                    </CardContent>
+                </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6">Total Delivered</Typography>
+                        <Typography variant="h4" color="primary">
+                            {state.stats.totalDelivered}
+                        </Typography>
+                    </CardContent>
+                </Card>
+            </Grid>
+        </Grid>
+    );
 
-    const handleTabChange = (event, newValue) => {
-        setActiveTab(newValue);
-    };
+    const renderDeliveryTable = () => (
+        <TableContainer component={Paper}>
+            <Table>
+                <TableHead>
+                    <TableRow>
+                        <TableCell>Patient Name</TableCell>
+                        <TableCell>Room Number</TableCell>
+                        <TableCell>Meal Type</TableCell>
+                        <TableCell>Scheduled Time</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Dietary Requirements</TableCell>
+                        <TableCell>Actions</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {state.deliveries.length > 0 ? (
+                        state.deliveries.map((delivery) => (
+                            <TableRow key={delivery._id}>
+                                <TableCell>{delivery.patientName}</TableCell>
+                                <TableCell>{delivery.roomNumber}</TableCell>
+                                <TableCell>{delivery.mealType}</TableCell>
+                                <TableCell>
+                                    {delivery.scheduledTime ? 
+                                        new Date(delivery.scheduledTime).toLocaleString() : 
+                                        'Not scheduled'}
+                                </TableCell>
+                                <TableCell>
+                                    <Chip
+                                        label={delivery.status}
+                                        color={
+                                            delivery.status === 'pending' ? 'warning' :
+                                            delivery.status === 'assigned' ? 'info' :
+                                            delivery.status === 'in-transit' ? 'primary' :
+                                            'success'
+                                        }
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    {delivery.dietaryRequirements?.length > 0 
+                                        ? delivery.dietaryRequirements.join(', ') 
+                                        : 'None'}
+                                </TableCell>
+                                <TableCell>
+                                    {delivery.canMarkDelivered && (
+                                        <Button
+                                            variant="contained"
+                                            color="success"
+                                            size="small"
+                                            onClick={() => setState(prev => ({
+                                                ...prev,
+                                                selectedDelivery: delivery,
+                                                dialogOpen: true
+                                            }))}
+                                        >
+                                            Mark Delivered
+                                        </Button>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={7} align="center">
+                                No active deliveries found
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    );
 
-    const getActiveDeliveries = () => {
-        return deliveries.filter(delivery => 
-            delivery.status === 'pending' || delivery.status === 'in-transit'
-        );
-    };
-
-    if (loading) {
+    if (state.loading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
                 <CircularProgress />
             </Box>
-        );
-    }
-
-    if (error) {
-        return (
-            <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-            </Alert>
         );
     }
 
@@ -137,122 +248,45 @@ const DeliveryDashboard = () => {
                 Delivery Dashboard
             </Typography>
 
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} md={4}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                Pending Deliveries
-                            </Typography>
-                            <Typography variant="h4" color="warning.main">
-                                {stats.pendingDeliveries}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                Completed Today
-                            </Typography>
-                            <Typography variant="h4" color="success.main">
-                                {stats.completedToday}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                Total Delivered
-                            </Typography>
-                            <Typography variant="h4" color="primary">
-                                {stats.totalDelivered}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-            </Grid>
+            {state.error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {state.error}
+                </Alert>
+            )}
 
-            <Paper sx={{ mb: 2 }}>
-                <Tabs value={activeTab} onChange={handleTabChange} centered>
+            {renderStats()}
+
+            <Paper sx={{ mb: 3 }}>
+                <Tabs
+                    value={state.activeTab}
+                    onChange={(_, newValue) => setState(prev => ({ ...prev, activeTab: newValue }))}
+                    centered
+                >
                     <Tab label="Active Deliveries" />
                     <Tab label="Delivery History" />
                 </Tabs>
             </Paper>
 
-            {activeTab === 0 ? (
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Patient Name</TableCell>
-                                <TableCell>Room Number</TableCell>
-                                <TableCell>Meal Type</TableCell>
-                                <TableCell>Scheduled Time</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {getActiveDeliveries().map((delivery) => (
-                                <TableRow key={delivery._id}>
-                                    <TableCell>{delivery.patientName}</TableCell>
-                                    <TableCell>{delivery.roomNumber}</TableCell>
-                                    <TableCell>{delivery.mealType}</TableCell>
-                                    <TableCell>
-                                        {new Date(delivery.scheduledTime).toLocaleTimeString()}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip 
-                                            label={delivery.status}
-                                            color={delivery.status === 'pending' ? 'warning' : 'info'}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button
-                                            variant="contained"
-                                            color="success"
-                                            size="small"
-                                            onClick={() => {
-                                                setSelectedDelivery(delivery);
-                                                setDialogOpen(true);
-                                            }}
-                                        >
-                                            Mark Delivered
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            ) : (
-                <DeliveryHistory />
-            )}
+            {state.activeTab === 0 ? renderDeliveryTable() : <DeliveryHistory />}
 
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle>Mark Delivery as Complete</DialogTitle>
+            <Dialog open={state.dialogOpen} onClose={() => setState(prev => ({ ...prev, dialogOpen: false }))}>
+                <DialogTitle>Complete Delivery</DialogTitle>
                 <DialogContent>
                     <TextField
                         fullWidth
-                        label="Delivery Notes (Optional)"
+                        label="Delivery Notes"
                         multiline
                         rows={4}
-                        value={deliveryNote}
-                        onChange={(e) => setDeliveryNote(e.target.value)}
+                        value={state.deliveryNote}
+                        onChange={(e) => setState(prev => ({ ...prev, deliveryNote: e.target.value }))}
                         margin="normal"
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    <Button 
-                        onClick={() => handleMarkDelivered(selectedDelivery._id)}
-                        variant="contained"
-                        color="success"
-                    >
+                    <Button onClick={() => setState(prev => ({ ...prev, dialogOpen: false }))}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleMarkDelivered} variant="contained" color="success">
                         Confirm Delivery
                     </Button>
                 </DialogActions>

@@ -1,64 +1,66 @@
-const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
 
 class WebSocketService {
-    constructor(server) {
-        this.wss = new WebSocket.Server({ server });
-        this.clients = new Map(); // Map to store client connections
-
-        this.wss.on('connection', (ws, req) => {
-            this.handleConnection(ws, req);
-        });
+    constructor() {
+        this.io = null;
+        this.userSockets = new Map();
     }
 
-    handleConnection(ws, req) {
-        ws.on('message', (message) => {
-            try {
-                const data = JSON.parse(message);
-                if (data.type === 'auth') {
-                    this.authenticateClient(ws, data.token);
-                }
-            } catch (error) {
-                console.error('WebSocket message error:', error);
+    initialize(server) {
+        this.io = require('socket.io')(server, {
+            cors: {
+                origin: [
+                    'https://nutri-care1.vercel.app',
+                    'http://localhost:5173'
+                ],
+                methods: ['GET', 'POST']
             }
         });
 
-        ws.on('close', () => {
-            this.removeClient(ws);
+        this.io.use((socket, next) => {
+            const token = socket.handshake.auth.token;
+            if (!token) {
+                return next(new Error('Authentication error'));
+            }
+            
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                socket.userId = decoded.userId;
+                socket.userRole = decoded.role;
+                next();
+            } catch (err) {
+                next(new Error('Authentication error'));
+            }
+        });
+
+        this.io.on('connection', (socket) => {
+            console.log('Client connected:', socket.userId);
+            
+            // Store socket reference for this user
+            this.userSockets.set(socket.userId, socket);
+
+            socket.on('disconnect', () => {
+                console.log('Client disconnected:', socket.userId);
+                this.userSockets.delete(socket.userId);
+            });
         });
     }
 
-    authenticateClient(ws, token) {
-        try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            this.clients.set(ws, {
-                userId: decoded.userId,
-                role: decoded.role
-            });
-        } catch (error) {
-            ws.close();
+    // Notify specific delivery person about new assignment
+    notifyDeliveryPerson(userId, data) {
+        const socket = this.userSockets.get(userId);
+        if (socket) {
+            socket.emit('new_delivery_assignment', data);
         }
     }
 
-    removeClient(ws) {
-        this.clients.delete(ws);
-    }
-
-    notifyDeliveryPersonnel(userId, notification) {
-        this.clients.forEach((client, ws) => {
-            if (client.userId === userId) {
-                ws.send(JSON.stringify(notification));
-            }
-        });
-    }
-
-    notifyPantryStaff(notification) {
-        this.clients.forEach((client, ws) => {
-            if (client.role === 'pantry' || client.role === 'manager') {
-                ws.send(JSON.stringify(notification));
-            }
-        });
+    // Notify about delivery updates
+    notifyDeliveryUpdate(userId, data) {
+        const socket = this.userSockets.get(userId);
+        if (socket) {
+            socket.emit('delivery_update', data);
+        }
     }
 }
 
-module.exports = WebSocketService; 
+module.exports = new WebSocketService(); 

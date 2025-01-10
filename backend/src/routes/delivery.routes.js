@@ -74,11 +74,12 @@ router.put('/mark-delivered/:id', auth, async (req, res) => {
 
         const delivery = await Delivery.findOne({
             _id: req.params.id,
-            assignedTo: userId
+            assignedTo: userId,
+            deliveryStatus: { $in: ['pending', 'assigned', 'in-transit'] }
         });
 
         if (!delivery) {
-            return res.status(404).json({ message: 'Delivery not found' });
+            return res.status(404).json({ message: 'Delivery not found or cannot be marked as delivered' });
         }
 
         delivery.deliveryStatus = 'delivered';
@@ -87,61 +88,17 @@ router.put('/mark-delivered/:id', auth, async (req, res) => {
 
         await delivery.save();
 
-        // Get updated analytics data
-        const today = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 7);
-
-        const deliveriesPerDay = await Delivery.aggregate([
-            {
-                $match: {
-                    deliveryStatus: 'delivered',
-                    deliveryTime: {
-                        $gte: startDate,
-                        $lte: today
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: {
-                        $dateToString: { format: "%Y-%m-%d", date: "$deliveryTime" }
-                    },
-                    count: { $sum: 1 }
-                }
-            },
-            {
-                $sort: { _id: 1 }
-            }
-        ]);
-
-        // Fill in missing dates
-        const allDates = [];
-        for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            const existingData = deliveriesPerDay.find(d => d._id === dateStr);
-            allDates.push({
-                date: dateStr,
-                count: existingData ? existingData.count : 0
-            });
-        }
-
-        // Get WebSocket service and notify with updated data
-        const wsService = req.app.get('wsService');
-        wsService.notifyPantryStaff({
-            type: 'delivery_completed',
-            message: 'Delivery has been marked as delivered',
-            updateType: 'analytics',
-            data: {
-                deliveriesPerDay: allDates,
-                delivery
-            }
+        // Send success response
+        res.json({
+            message: 'Delivery marked as completed successfully',
+            delivery
         });
-
-        res.json(delivery);
     } catch (error) {
         console.error('Error marking delivery as delivered:', error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ 
+            message: 'Failed to mark delivery as delivered',
+            error: error.message 
+        });
     }
 });
 
@@ -149,37 +106,32 @@ router.put('/mark-delivered/:id', auth, async (req, res) => {
 router.get('/history', auth, async (req, res) => {
     try {
         const userId = req.userData.userId;
-        const { startDate, endDate } = req.query;
-
-        const query = {
+        
+        // Get all delivered orders for this delivery person
+        const deliveries = await Delivery.find({
             assignedTo: userId,
             deliveryStatus: 'delivered'
-        };
+        })
+        .populate('patientId', 'name roomNumber')
+        .sort({ deliveryTime: -1 });
 
-        if (startDate && endDate) {
-            query.deliveryTime = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
-        }
-
-        const deliveries = await Delivery.find(query)
-            .populate('patientId', 'name roomNumber')
-            .sort({ deliveryTime: -1 })
-            .limit(50);
-
-        const formattedDeliveries = deliveries.map(delivery => ({
+        const formattedHistory = deliveries.map(delivery => ({
             _id: delivery._id,
-            patientName: delivery.patientId.name,
-            roomNumber: delivery.patientId.roomNumber,
+            patientName: delivery.patientId?.name || 'Unknown',
+            roomNumber: delivery.patientId?.roomNumber || 'N/A',
             mealType: delivery.mealType,
             deliveryTime: delivery.deliveryTime,
-            notes: delivery.deliveryNotes
+            notes: delivery.deliveryNotes || ''
         }));
 
-        res.json(formattedDeliveries);
+        console.log(`Found ${formattedHistory.length} delivered items for user ${userId}`);
+        res.json(formattedHistory);
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error fetching delivery history:', error);
+        res.status(500).json({ 
+            message: 'Failed to fetch delivery history',
+            error: error.message 
+        });
     }
 });
 
@@ -210,32 +162,45 @@ router.put('/start-delivery/:id', auth, async (req, res) => {
 // Get deliveries for logged-in delivery personnel
 router.get('/my-deliveries', auth, async (req, res) => {
     try {
-        // Get deliveries assigned to the logged-in user
+        const userId = req.userData.userId;
+        console.log('Fetching active deliveries for user:', userId);
+
+        // Get all non-delivered orders for this delivery person
         const deliveries = await Delivery.find({
-            assignedTo: req.userData.userId,  // Changed from req.user.userId to req.userData.userId
-            deliveryStatus: { $in: ['pending', 'in-transit'] }
+            assignedTo: userId,
+            deliveryStatus: { $in: ['pending', 'assigned', 'in-transit'] }
         })
-        .populate('patientId', 'name roomNumber')
-        .populate('dietChartId')
+        .populate({
+            path: 'patientId',
+            select: 'name roomNumber'
+        })
+        .populate({
+            path: 'dietChartId',
+            select: 'specialDietaryRequirements'
+        })
         .sort({ scheduledTime: 1 });
+
+        console.log('Found deliveries:', deliveries);
 
         const formattedDeliveries = deliveries.map(delivery => ({
             _id: delivery._id,
-            patientName: delivery.patientId.name,
-            roomNumber: delivery.patientId.roomNumber,
+            patientName: delivery.patientId?.name || 'Unknown',
+            roomNumber: delivery.patientId?.roomNumber || 'N/A',
             mealType: delivery.mealType,
-            status: delivery.deliveryStatus,
             scheduledTime: delivery.scheduledTime,
-            dietDetails: delivery.dietChartId ? {
-                restrictions: delivery.dietChartId.restrictions,
-                instructions: delivery.dietChartId.instructions
-            } : null
+            status: delivery.deliveryStatus,
+            dietaryRequirements: delivery.dietChartId?.specialDietaryRequirements || [],
+            canMarkDelivered: ['pending', 'assigned', 'in-transit'].includes(delivery.deliveryStatus)
         }));
 
+        console.log('Formatted deliveries:', formattedDeliveries);
         res.json(formattedDeliveries);
     } catch (error) {
-        console.error('Error fetching deliveries:', error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error fetching active deliveries:', error);
+        res.status(500).json({ 
+            message: 'Failed to fetch active deliveries',
+            error: error.message 
+        });
     }
 });
 

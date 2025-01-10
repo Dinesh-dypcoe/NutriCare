@@ -1,65 +1,67 @@
+import { io } from 'socket.io-client';
+
 class WebSocketService {
     constructor() {
-        this.ws = null;
+        this.socket = null;
         this.listeners = new Map();
-        this.wsUrl = import.meta.env.VITE_API_URL.replace('http', 'ws').replace('/api', '');
     }
 
     connect() {
-        this.ws = new WebSocket(this.wsUrl);
-
-        this.ws.onopen = () => {
-            console.log('WebSocket connected');
+        if (!this.socket) {
             const token = localStorage.getItem('token');
-            if (token) {
-                this.ws.send(JSON.stringify({
-                    type: 'auth',
-                    token
-                }));
-            }
-        };
+            this.socket = io(import.meta.env.VITE_API_URL.replace('/api', ''), {
+                auth: { token },
+                transports: ['websocket']
+            });
 
-        this.ws.onmessage = (event) => {
-            const notification = JSON.parse(event.data);
-            this.notifyListeners(notification);
-        };
+            this.socket.on('connect', () => {
+                console.log('WebSocket connected');
+            });
 
-        this.ws.onclose = () => {
-            console.log('WebSocket disconnected');
-            // Attempt to reconnect after 5 seconds
-            setTimeout(() => this.connect(), 5000);
-        };
+            this.socket.on('error', (error) => {
+                console.error('WebSocket error:', error);
+            });
+
+            // Listen for delivery updates
+            this.socket.on('delivery_update', (data) => {
+                console.log('Received delivery update:', data);
+                this.notifyListeners('delivery_update', data);
+            });
+
+            // Listen for new assignments
+            this.socket.on('new_delivery_assignment', (data) => {
+                console.log('Received new delivery assignment:', data);
+                this.notifyListeners('new_delivery_assignment', data);
+            });
+        }
     }
 
-    addListener(id, handler) {
-        this.listeners.set(id, { id, handler });
+    addListener(event, callback) {
+        if (!this.listeners.has(event)) {
+            this.listeners.set(event, new Set());
+        }
+        this.listeners.get(event).add(callback);
     }
 
-    removeListener(id) {
-        this.listeners.delete(id);
+    removeListener(event, callback) {
+        if (this.listeners.has(event)) {
+            this.listeners.get(event).delete(callback);
+        }
     }
 
-    notifyListeners(notification) {
-        this.listeners.forEach(callback => {
-            if (notification.updateType === 'analytics') {
-                // Only notify analytics listeners with the full data
-                if (callback.id === 'analytics') {
-                    callback.handler({
-                        ...notification,
-                        data: notification.data
-                    });
-                }
-            } else {
-                callback.handler(notification);
-            }
-        });
+    notifyListeners(event, data) {
+        if (this.listeners.has(event)) {
+            this.listeners.get(event).forEach(callback => callback(data));
+        }
     }
 
     disconnect() {
-        if (this.ws) {
-            this.ws.close();
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
         }
     }
 }
 
-export default new WebSocketService(); 
+export const wsService = new WebSocketService();
+export default wsService; 
