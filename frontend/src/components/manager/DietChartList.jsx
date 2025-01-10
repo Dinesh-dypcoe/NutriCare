@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Paper,
     Table,
@@ -15,17 +15,30 @@ import {
     Chip,
     CircularProgress,
     Alert,
-    InputAdornment
+    InputAdornment,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Snackbar
 } from '@mui/material';
 import { Edit, Delete, Add, Visibility, Search as SearchIcon } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { dietChartAPI } from '../../services/api';
 
 const DietChartList = () => {
     const [dietCharts, setDietCharts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [selectedChartId, setSelectedChartId] = useState(null);
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
     const navigate = useNavigate();
 
     const fetchDietCharts = async () => {
@@ -50,16 +63,42 @@ const DietChartList = () => {
         fetchDietCharts();
     }, []);
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this diet chart?')) {
-            try {
-                await dietChartAPI.delete(id);
-                fetchDietCharts();
-            } catch (error) {
-                console.error('Error deleting diet chart:', error);
-                setError('Failed to delete diet chart. Please try again.');
-            }
+    const handleDeleteClick = (id) => {
+        setSelectedChartId(id);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        try {
+            setLoading(true);
+            await dietChartAPI.delete(selectedChartId);
+            
+            // Update the list
+            setDietCharts(prevCharts => 
+                prevCharts.filter(chart => chart._id !== selectedChartId)
+            );
+            
+            setSnackbar({
+                open: true,
+                message: 'Diet chart deleted successfully',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error deleting diet chart:', error);
+            setSnackbar({
+                open: true,
+                message: error.response?.data?.message || 'Failed to delete diet chart',
+                severity: 'error'
+            });
+        } finally {
+            setLoading(false);
+            setDeleteDialogOpen(false);
+            setSelectedChartId(null);
         }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({ ...prev, open: false }));
     };
 
     const getStatusColor = (status) => {
@@ -171,8 +210,8 @@ const DietChartList = () => {
                                             <Edit />
                                         </IconButton>
                                         <IconButton
+                                            onClick={() => handleDeleteClick(chart._id)}
                                             color="error"
-                                            onClick={() => handleDelete(chart._id)}
                                         >
                                             <Delete />
                                         </IconButton>
@@ -191,6 +230,46 @@ const DietChartList = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
+
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={() => setDeleteDialogOpen(false)}
+            >
+                <DialogTitle>Confirm Delete</DialogTitle>
+                <DialogContent>
+                    Are you sure you want to delete this diet chart?
+                </DialogContent>
+                <DialogActions>
+                    <Button 
+                        onClick={() => setDeleteDialogOpen(false)}
+                        color="primary"
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleDeleteConfirm}
+                        color="error"
+                        variant="contained"
+                    >
+                        Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert 
+                    onClose={handleCloseSnackbar} 
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

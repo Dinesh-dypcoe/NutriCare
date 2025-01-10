@@ -45,7 +45,19 @@ export const dietChartAPI = {
     getById: (id) => api.get(`/manager/diet-charts/${id}`),
     create: (data) => api.post('/manager/diet-charts', data),
     update: (id, data) => api.put(`/manager/diet-charts/${id}`, data),
-    delete: (id) => api.delete(`/manager/diet-charts/${id}`)
+    delete: async (id) => {
+        try {
+            const response = await axios.delete(`${API_URL}/manager/diet-charts/${id}`, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            return response;
+        } catch (error) {
+            console.error('API Error - Delete Diet Chart:', error);
+            throw error;
+        }
+    }
 };
 
 export default api; 

@@ -87,8 +87,60 @@ router.put('/mark-delivered/:id', auth, async (req, res) => {
 
         await delivery.save();
 
+        // Get updated analytics data
+        const today = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+
+        const deliveriesPerDay = await Delivery.aggregate([
+            {
+                $match: {
+                    deliveryStatus: 'delivered',
+                    deliveryTime: {
+                        $gte: startDate,
+                        $lte: today
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y-%m-%d", date: "$deliveryTime" }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { _id: 1 }
+            }
+        ]);
+
+        // Fill in missing dates
+        const allDates = [];
+        for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            const existingData = deliveriesPerDay.find(d => d._id === dateStr);
+            allDates.push({
+                date: dateStr,
+                count: existingData ? existingData.count : 0
+            });
+        }
+
+        // Get WebSocket service and notify with updated data
+        const wsService = req.app.get('wsService');
+        wsService.notifyPantryStaff({
+            type: 'delivery_completed',
+            message: 'Delivery has been marked as delivered',
+            updateType: 'analytics',
+            data: {
+                deliveriesPerDay: allDates,
+                delivery
+            }
+        });
+
         res.json(delivery);
     } catch (error) {
+        console.error('Error marking delivery as delivered:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });

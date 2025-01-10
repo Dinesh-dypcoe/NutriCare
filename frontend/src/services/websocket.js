@@ -30,8 +30,8 @@ class WebSocketService {
         };
     }
 
-    addListener(id, callback) {
-        this.listeners.set(id, callback);
+    addListener(id, handler) {
+        this.listeners.set(id, { id, handler });
     }
 
     removeListener(id) {
@@ -40,7 +40,17 @@ class WebSocketService {
 
     notifyListeners(notification) {
         this.listeners.forEach(callback => {
-            callback(notification);
+            if (notification.updateType === 'analytics') {
+                // Only notify analytics listeners with the full data
+                if (callback.id === 'analytics') {
+                    callback.handler({
+                        ...notification,
+                        data: notification.data
+                    });
+                }
+            } else {
+                callback.handler(notification);
+            }
         });
     }
 

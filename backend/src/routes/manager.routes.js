@@ -123,24 +123,46 @@ router.get('/diet-charts/:id', auth, async (req, res) => {
 // Create diet chart
 router.post('/diet-charts', auth, async (req, res) => {
     try {
-        const dietChart = new DietChart(req.body);
-        await dietChart.save();
+        console.log('Creating diet chart with data:', JSON.stringify(req.body, null, 2));
 
-        // Create delivery entries for each meal
-        const deliveries = req.body.meals.map(meal => ({
+        // Validate required fields
+        if (!req.body.patientId) {
+            return res.status(400).json({ message: 'Patient ID is required' });
+        }
+
+        if (!req.body.meals || !Array.isArray(req.body.meals) || req.body.meals.length === 0) {
+            return res.status(400).json({ message: 'At least one meal is required' });
+        }
+
+        const dietChart = new DietChart({
             patientId: req.body.patientId,
-            dietChartId: dietChart._id,
-            mealType: meal.type,
-            scheduledTime: new Date(meal.timing),
-            preparationStatus: 'pending',
-            deliveryStatus: 'pending'
-        }));
+            meals: req.body.meals.map(meal => ({
+                type: meal.type,
+                items: meal.items || [],
+                specialInstructions: meal.specialInstructions || [],
+                timing: meal.timing
+            })),
+            startDate: req.body.startDate,
+            endDate: req.body.endDate,
+            specialDietaryRequirements: req.body.specialDietaryRequirements || [],
+            status: 'active'
+        });
 
-        await Delivery.insertMany(deliveries);
+        console.log('Created diet chart object:', dietChart);
+
+        await dietChart.save();
+        console.log('Diet chart saved successfully');
 
         res.status(201).json(dietChart);
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error creating diet chart:', error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ 
+                message: 'Validation Error', 
+                errors: Object.values(error.errors).map(err => err.message)
+            });
+        }
+        res.status(500).json({ message: 'Failed to save diet chart', error: error.message });
     }
 });
 
@@ -171,17 +193,29 @@ router.put('/diet-charts/:id', auth, async (req, res) => {
 // Delete diet chart
 router.delete('/diet-charts/:id', auth, async (req, res) => {
     try {
-        const dietChart = await DietChart.findByIdAndDelete(req.params.id);
+        console.log('Attempting to delete diet chart:', req.params.id);
+
+        const dietChart = await DietChart.findById(req.params.id);
         if (!dietChart) {
+            console.log('Diet chart not found');
             return res.status(404).json({ message: 'Diet chart not found' });
         }
 
-        // Delete related deliveries
+        // Delete the diet chart
+        await DietChart.findByIdAndDelete(req.params.id);
+        console.log('Diet chart deleted successfully');
+
+        // Delete related deliveries if they exist
         await Delivery.deleteMany({ dietChartId: req.params.id });
+        console.log('Related deliveries deleted');
 
         res.json({ message: 'Diet chart deleted successfully' });
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error deleting diet chart:', error);
+        res.status(500).json({ 
+            message: 'Failed to delete diet chart', 
+            error: error.message 
+        });
     }
 });
 
@@ -407,6 +441,125 @@ router.get('/patients/:patientId/active-diet-chart', auth, async (req, res) => {
         
         res.json(activeDietChart);
     } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Update the analytics endpoint
+router.get('/analytics', auth, async (req, res) => {
+    try {
+        // Get date range for last 7 days
+        const endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+
+        // Get deliveries per day for last 7 days
+        const deliveriesPerDay = await Delivery.aggregate([
+            {
+                $match: {
+                    deliveryStatus: 'delivered',
+                    deliveryTime: {
+                        $gte: startDate,
+                        $lte: endDate
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y-%m-%d", date: "$deliveryTime" }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { _id: 1 }
+            }
+        ]);
+
+        console.log('Raw deliveries per day:', deliveriesPerDay); // Debug log
+
+        // Fill in missing dates with zero deliveries
+        const allDates = [];
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            const existingData = deliveriesPerDay.find(d => d._id === dateStr);
+            allDates.push({
+                date: dateStr,
+                count: existingData ? existingData.count : 0
+            });
+        }
+
+        console.log('Formatted dates:', allDates); // Debug log
+
+        res.json({
+            preparationMetrics: {
+                totalTasks: await Delivery.countDocuments({ 
+                    scheduledTime: { 
+                        $gte: new Date().setHours(0, 0, 0, 0),
+                        $lte: new Date().setHours(23, 59, 59, 999)
+                    }
+                }),
+                pendingTasks: await Delivery.countDocuments({ 
+                    preparationStatus: 'pending',
+                    scheduledTime: { 
+                        $gte: new Date().setHours(0, 0, 0, 0),
+                        $lte: new Date().setHours(23, 59, 59, 999)
+                    }
+                }),
+                preparingTasks: await Delivery.countDocuments({ 
+                    preparationStatus: 'preparing',
+                    scheduledTime: { 
+                        $gte: new Date().setHours(0, 0, 0, 0),
+                        $lte: new Date().setHours(23, 59, 59, 999)
+                    }
+                }),
+                completedTasks: await Delivery.countDocuments({ 
+                    preparationStatus: 'ready',
+                    scheduledTime: { 
+                        $gte: new Date().setHours(0, 0, 0, 0),
+                        $lte: new Date().setHours(23, 59, 59, 999)
+                    }
+                })
+            },
+            mealTypeDistribution: await Delivery.aggregate([
+                {
+                    $match: {
+                        scheduledTime: { 
+                            $gte: new Date().setHours(0, 0, 0, 0),
+                            $lte: new Date().setHours(23, 59, 59, 999)
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$mealType',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            statusDistribution: await Delivery.aggregate([
+                {
+                    $match: {
+                        scheduledTime: { 
+                            $gte: new Date().setHours(0, 0, 0, 0),
+                            $lte: new Date().setHours(23, 59, 59, 999)
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$preparationStatus',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            deliveriesPerDay: allDates
+        });
+    } catch (error) {
+        console.error('Analytics error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
